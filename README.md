@@ -317,8 +317,8 @@ Use `run.ps1` when you want to process your entire library:
 # Process all movies in Radarr
 .\run.ps1
 
-# Use custom configuration
-.\run.ps1 -ConfigFile "config-danilo.env"
+# Use custom configuration file
+.\run.ps1 -ConfigFile "my-personal.env"
 ```
 
 ### When to Use Each Method
@@ -332,10 +332,18 @@ Use `run.ps1` when you want to process your entire library:
 
 ### Custom Configuration Files
 
+You can create personal configuration files for different setups:
+
 ```powershell
-# Use custom config file
-.\run.ps1 -ConfigFile "my-custom.env"
+# Copy the template and customize it
+copy config.env my-personal.env
+
+# Edit my-personal.env with your specific settings
+# Then use it with run.ps1
+.\run.ps1 -ConfigFile "my-personal.env"
 ```
+
+**Note**: Personal config files (ending in `-personal.env` or `.local.env`) are automatically ignored by Git to protect your API keys and settings.
 
 ### TMDB Integration
 
