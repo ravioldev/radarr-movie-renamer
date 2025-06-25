@@ -1,0 +1,15 @@
+# GitHub Sponsors configuration for radarr-folder-rename project
+# Enable different sponsorship platforms
+
+# GitHub Sponsors (preferred)
+github: [ravioldev]
+
+# Other platforms (uncomment and configure as needed)
+# patreon: your_patreon_username
+# ko_fi: your_kofi_username
+# buy_me_a_coffee: your_buymeacoffee_username
+# paypal: your_paypal_email
+# custom: ["https://paypal.me/yourusername", "https://www.buymeacoffee.com/yourusername"]
+
+# Alternative: Single custom URL
+# custom: https://paypal.me/yourusername 

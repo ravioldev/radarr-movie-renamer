@@ -31,3 +31,6 @@ Desktop.ini
 .Spotlight-V100
 .Trashes
 ehthumbs.db
+
+# Release files
+releases/
