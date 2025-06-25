@@ -145,22 +145,48 @@ This processes all movies in your Radarr library at once.
 | `LOG_FILE` | Log file location | `C:\path\to\your\logs\...` | `D:\scripts\logs\rename.log` |
 | `GIT_BASH_PATH` | Path to Git Bash executable | `C:\Program Files\Git\bin\bash.exe` | Same for most systems |
 
+## 🏗️ Folder Naming Configuration
+
+### How Collections Work
+
+**Important**: Not all movies have collections. The behavior depends on both your settings AND whether each individual movie belongs to a collection:
+
+- **Movies WITH collections** (e.g., Marvel, Lord of the Rings): Can use collection format if enabled
+- **Movies WITHOUT collections** (e.g., standalone films): Always use simple "Title (Year)" format regardless of `USE_COLLECTIONS` setting
+
+### Configuration Impact
+
+| Setting | Movies WITH Collections | Movies WITHOUT Collections |
+|---------|------------------------|----------------------------|
+| `USE_COLLECTIONS=true` | `Collection (Year) - Title [Quality]` | `Title (Year) [Quality]` |
+| `USE_COLLECTIONS=false` | `Title (Year) [Quality]` | `Title (Year) [Quality]` |
+
 ## 🏗️ Folder Naming Examples
 
 ### With Collections + Quality (Default)
+```bash
+USE_COLLECTIONS=true
+INCLUDE_QUALITY_TAG=true
 ```
-Marvel Cinematic Universe (2008) - Iron Man [1080p]
-The Lord of the Rings Collection (2001) - The Fellowship of the Ring [4K]
+**Result (movies with AND without collections coexist):**
+```
+Marvel Cinematic Universe (2008) - Iron Man [1080p]          # Has collection
+The Lord of the Rings Collection (2001) - Fellowship of the Ring [4K]  # Has collection  
+Parasite (2019) [1080p]                                      # No collection - simple format
+Joker (2019) [1080p]                                         # No collection - simple format
 ```
 
-### Simple Title + Quality
+### Simple Title + Quality (Collections Ignored)
 ```bash
 USE_COLLECTIONS=false
 INCLUDE_QUALITY_TAG=true
 ```
+**Result (uniform format, collections ignored):**
 ```
-Iron Man (2008) [1080p]
-The Fellowship of the Ring (2001) [4K]
+Iron Man (2008) [1080p]                    # Collection ignored
+Fellowship of the Ring (2001) [4K]         # Collection ignored
+Parasite (2019) [1080p]                    # No collection anyway
+Joker (2019) [1080p]                       # No collection anyway
 ```
 
 ### Title Only (Minimal)
@@ -168,9 +194,12 @@ The Fellowship of the Ring (2001) [4K]
 USE_COLLECTIONS=false
 INCLUDE_QUALITY_TAG=false
 ```
+**Result (clean, no extras):**
 ```
-Iron Man (2008)
-The Fellowship of the Ring (2001)
+Iron Man (2008)                            # Collection + quality ignored
+Fellowship of the Ring (2001)              # Collection + quality ignored
+Parasite (2019)                            # No extras
+Joker (2019)                               # No extras
 ```
 
 ### Collection without Quality
@@ -178,9 +207,12 @@ The Fellowship of the Ring (2001)
 USE_COLLECTIONS=true
 INCLUDE_QUALITY_TAG=false
 ```
+**Result (mixed formats, no quality tags):**
 ```
-Marvel Cinematic Universe (2008) - Iron Man
-The Lord of the Rings Collection (2001) - The Fellowship of the Ring
+Marvel Cinematic Universe (2008) - Iron Man          # Has collection, no quality
+The Lord of the Rings Collection (2001) - Fellowship of the Ring  # Has collection, no quality
+Parasite (2019)                                      # No collection, no quality  
+Joker (2019)                                         # No collection, no quality
 ```
 
 ## 🌐 Language Behavior
