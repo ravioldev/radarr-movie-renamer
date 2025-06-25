@@ -364,6 +364,46 @@ TMDB_API_KEY=your_tmdb_api_key_here
 - `NATIVE_LANGUAGE` and `FALLBACK_LANGUAGE` settings have no effect
 - No international title support
 
+## 🏷️ Quality Tag Detection
+
+The script automatically detects video quality from Radarr's quality profiles and file metadata to add quality tags to folder names.
+
+### Supported Quality Tags
+
+| Quality Tag | Detection Pattern | Source |
+|-------------|-------------------|---------|
+| **2160p** | Contains "2160" or "4k" | Quality profile name or video resolution |
+| **1440p** | Contains "1440" | Quality profile name or video resolution |
+| **1080p** | Contains "1080" | Quality profile name or video resolution |
+| **720p** | Contains "720" | Quality profile name or video resolution |
+| **DVD-Rip** | Contains "576" or "dvd" | Quality profile name or video resolution |
+| **480p** | Contains "480" | Quality profile name or video resolution |
+| **LowQuality** | Everything else | Fallback for unrecognized formats |
+
+### How Quality Detection Works
+
+The script uses **automatic detection** - no specific Radarr quality profile configuration required:
+
+1. **Primary Source**: Radarr's quality profile name (e.g., "Ultra-HD", "HD-1080p", "HD-720p")
+2. **Secondary Source**: Video file resolution metadata (from MediaInfo)
+3. **Case-insensitive matching**: Works with any naming convention
+4. **Fallback**: If no pattern matches, defaults to "LowQuality"
+
+### Examples
+
+```bash
+# These Radarr quality profiles would be detected as:
+"Ultra-HD" → 2160p          # Contains "4k" or "2160"
+"HD-1080p" → 1080p          # Contains "1080"  
+"HD-720p" → 720p            # Contains "720"
+"DVD" → DVD-Rip             # Contains "dvd"
+"HDTV-480p" → 480p          # Contains "480"
+"WEBDL-1080p" → 1080p       # Contains "1080"
+"Custom Quality" → LowQuality  # No recognizable pattern
+```
+
+**Note**: Quality detection is **automatic** and works with any Radarr quality profile names or video resolutions. You don't need to configure specific profiles.
+
 ### Auto-Detection from Radarr
 
 ```bash
