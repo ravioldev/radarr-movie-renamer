@@ -347,16 +347,22 @@ copy config.env my-personal.env
 
 ### TMDB Integration
 
-Enable TMDB for enhanced metadata support:
+**Important**: TMDB integration is **required for multi-language support**. Without TMDB, the script only uses titles from Radarr (typically English).
 
 ```bash
 TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-Benefits:
-- Better international title support
-- Enhanced metadata for renaming decisions
-- Improved accuracy for foreign films
+**What TMDB enables:**
+- **Multi-language titles**: Access to movie titles in different languages (Spanish, German, French, etc.)
+- **Native language detection**: Ability to use original titles for movies in your native language
+- **Alternative titles**: Access to regional and alternative movie titles
+- **Language fallback system**: The full language preference system described in this guide
+
+**Without TMDB:**
+- Only uses titles available in Radarr database (usually English)
+- `NATIVE_LANGUAGE` and `FALLBACK_LANGUAGE` settings have no effect
+- No international title support
 
 ### Auto-Detection from Radarr
 
@@ -431,4 +437,16 @@ Check the log files for detailed error information. Most issues are configuratio
 If something goes wrong:
 - Restore from your Radarr database backup
 - Check the detailed logs for specific error messages
-- Verify your configuration matches your actual setup 
+- Verify your configuration matches your actual setup
+
+## 💖 Support the Project
+
+If this project helped you organize your movie library and you'd like to support continued development, consider sponsoring! Your support helps maintain and improve these scripts.
+
+**[💖 Sponsor this project on GitHub](https://github.com/sponsors/ravioldev)**
+
+Every contribution, no matter how small, is greatly appreciated and helps keep this project active and improving! 🙏
+
+---
+
+*Thank you for using the Radarr Folder Rename System!* 
