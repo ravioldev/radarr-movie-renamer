@@ -1,4 +1,39 @@
-# Radarr Folder Rename Scripts
+# Radarr Movie Folders Renamer
+
+**Automatically organize and rename your existing Radarr movie collection with intelligent, standardized folder naming patterns.**
+
+## 🎯 What This Project Does
+
+**Radarr Movie Folders Renamer** transforms your messy movie folder collection into a beautifully organized library. It automatically renames movie folders using consistent patterns that make your collection easier to browse, search, and manage.
+
+### 📁 Transform Your Movie Library
+
+**Before (messy, inconsistent names):**
+```
+/movies/Iron.Man.2008.1080p.BluRay.x264-GROUP/
+/movies/The Dark Knight (2008)/
+/movies/avengers_endgame_2019_4k/
+/movies/LOTR.Fellowship.2001.Extended.BluRay/
+/movies/Parasite.2019.Korean.1080p/
+```
+
+**After (organized, standardized patterns):**
+```
+/movies/Marvel Cinematic Universe (2008) - Iron Man [1080p]/
+/movies/The Dark Knight (2008) [1080p]/
+/movies/Marvel Cinematic Universe (2019) - Avengers Endgame [4K]/
+/movies/The Lord of the Rings Collection (2001) - Fellowship of the Ring [1080p]/
+/movies/Parasite (2019) [1080p]/
+```
+
+### ✨ Key Benefits
+
+- **🎬 Collection Organization**: Group franchise movies together (Marvel, DC, Star Wars, etc.)
+- **🏷️ Quality Tags**: Clear quality indicators (4K, 1080p, 720p, DVD-Rip, etc.)
+- **🌍 Multi-Language Support**: Use native language titles for foreign films
+- **📁 Consistent Naming**: Uniform folder structure across your entire library
+- **🔄 Radarr Integration**: Works seamlessly with your existing Radarr setup
+- **🛡️ Safe Testing**: Test with small subsets before processing entire library
 
 A comprehensive set of scripts for automatically organizing and renaming movie folders in Radarr with customizable configurations.
 
@@ -47,11 +82,15 @@ A comprehensive set of scripts for automatically organizing and renaming movie f
 
 ```
 rename-script/
-├── config.env                    # Main configuration file
+├── config.env                    # Main configuration file (template)
 ├── run.ps1                      # PowerShell launcher for bulk processing
 ├── rename-radarr-folders.bat    # Windows batch wrapper for individual movies
 ├── rename-radarr-folders.sh     # Main bash script with all logic
-└── README.md                    # This file
+├── get-movie-ids.ps1            # Testing utility: List movies with IDs
+├── get-single-movie.ps1         # Testing utility: Get single movie info
+├── logs/                        # Log files directory (created automatically)
+├── releases/                    # Release files and documentation
+└── README.md                    # Complete documentation
 ```
 
 ## 🚀 Quick Start
@@ -339,9 +378,8 @@ Configure Radarr to automatically rename movies when they are imported, upgraded
    Triggers:
    ✅ On Import
    ✅ On Upgrade  
+   ✅ On Update
    ✅ On Rename
-   
-   Arguments: (leave empty - Radarr passes them automatically)
    ```
 
 3. **How it works**:
@@ -471,11 +509,11 @@ The script uses **automatic detection** - no specific Radarr quality profile con
 "HD-720p" → 720p            # Contains "720"
 "DVD" → DVD-Rip             # Contains "dvd"
 "HDTV-480p" → 480p          # Contains "480"
-"SDTV" → 480p               # Contains "sdtv" - NEW MAPPING
-"WEBDL-1080p" → 1080p       # Contains "webdl" - ENHANCED MAPPING
-"Bluray-1080p" → 1080p      # Contains "bluray" - ENHANCED MAPPING
-"WebRip-1080p" → 1080p      # Contains "webrip" - ENHANCED MAPPING
-"DVD-576p" → DVD-Rip        # Contains "576" - ENHANCED MAPPING
+"SDTV" → 480p               # Contains "sdtv"
+"WEBDL-1080p" → 1080p       # Contains "webdl"
+"Bluray-1080p" → 1080p      # Contains "bluray"
+"WebRip-1080p" → 1080p      # Contains "webrip"
+"DVD-576p" → DVD-Rip        # Contains "576"
 "Custom Quality" → LowQuality  # No recognizable pattern
 ```
 

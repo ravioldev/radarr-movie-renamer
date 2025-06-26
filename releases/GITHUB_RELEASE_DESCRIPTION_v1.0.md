@@ -1,51 +1,74 @@
-# 🚀 Radarr Folder Rename Scripts v1.0 - Major Feature Update
+# 🚀 Radarr Movie Folders Renamer v1.0 - Initial Release
 
-Complete Radarr movie folder rename system with comprehensive improvements and new features.
+Complete automated system for organizing and renaming Radarr movie folders with intelligent naming patterns.
 
-## ✨ NEW FEATURES
+## 🎯 What This Project Does
+
+**Radarr Movie Folders Renamer** automatically organizes your existing Radarr movie collection by renaming folders with consistent, organized patterns. Transform messy folder names into clean, standardized formats that make your library easier to browse and manage.
+
+### 📁 Folder Naming Examples
+
+Transform your movie folders from random names to organized patterns:
+
+**Before:**
+```
+/movies/Iron.Man.2008.1080p.BluRay.x264-GROUP/
+/movies/The Dark Knight (2008)/
+/movies/avengers_endgame_2019_4k/
+```
+
+**After:**
+```
+/movies/Marvel Cinematic Universe (2008) - Iron Man [1080p]/
+/movies/The Dark Knight (2008) [1080p]/
+/movies/Marvel Cinematic Universe (2019) - Avengers Endgame [4K]/
+```
+
+## ✨ KEY FEATURES
 
 ### 🧪 Safe Testing with MaxMovies Parameter
 - **run.ps1 -MaxMovies N**: Process only first N movies for safe testing
 - Detailed success/error counting and reporting
-- Perfect for testing configuration changes without affecting entire library
+- Perfect for testing configuration before processing entire library
 
-### 🎯 Enhanced Quality Detection
-- **New SDTV → 480p mapping**: Better handling of standard definition content
-- **Improved 1080p detection**: Enhanced WebDL, Bluray, WebRip pattern matching
-- **Better DVD mapping**: 576p → DVD-Rip for accurate quality representation
-- **Case-insensitive matching**: More reliable quality tag extraction
+### 🎯 Intelligent Quality Detection
+- **SDTV → 480p mapping**: Standard definition content handling
+- **Enhanced 1080p detection**: WebDL, Bluray, WebRip pattern matching
+- **4K/UHD support**: Proper 4K and UHD quality tag extraction
+- **Case-insensitive matching**: Reliable quality tag detection
 
 ### 📁 Full Paths with Spaces Support
 - **No escaping needed**: Works seamlessly with paths containing spaces
-- **Enhanced batch parsing**: Improved Windows batch file configuration handling
-- **Better argument processing**: Robust PowerShell and Bash argument handling
+- **Enhanced parsing**: Robust Windows batch and PowerShell handling
+- **Cross-platform**: Works on Windows, Linux, and macOS
 
 ### 🔤 Special Character Handling
 - **Single quotes**: Proper handling of titles like "'71"
-- **Complex punctuation**: Commas, periods, hyphens, and other special characters
-- **Unicode support**: International characters and accents
+- **Complex punctuation**: Commas, periods, hyphens, and special characters
+- **International support**: Unicode characters and accents
 
-### 🛠️ New Testing Utilities
+### 🛠️ Testing and Debugging Utilities
 - **get-movie-ids.ps1**: List all movies with IDs for targeted testing
 - **get-single-movie.ps1**: Get detailed info for specific movie by ID
-- Better debugging and troubleshooting capabilities
+- **Comprehensive logging**: Full operation tracking for troubleshooting
 
-## 🔧 MAJOR IMPROVEMENTS
+## 🔧 CORE CAPABILITIES
 
-### 🎯 Fixed Critical Folder Renaming Logic
-- **Destination reversion bug fixed**: Folders no longer revert to original names
-- **Improved path handling**: Better validation and error checking
-- **Enhanced logging**: Detailed progress tracking for troubleshooting
+### 🎯 Intelligent Folder Organization
+- **Collection grouping**: Movies organized by franchise/collection
+- **Quality tags**: Automatic quality detection and tagging
+- **Language preferences**: Configurable native and fallback languages
+- **Flexible patterns**: Multiple naming format options
 
-### ⚡ Simplified Configuration Parsing
-- **Batch file improvements**: Avoid syntax errors with complex configurations
-- **Better variable expansion**: More reliable ${VARIABLE} substitution
-- **Enhanced validation**: Clear error messages for configuration issues
+### ⚡ Robust Configuration System
+- **Centralized config**: Single config.env file for all settings
+- **Variable expansion**: Support for ${VARIABLE} substitution
+- **Comprehensive validation**: Clear error messages and guidance
 
-### 📊 Enhanced Error Handling
-- **Detailed exit codes**: Specific codes for different error types
-- **Better error messages**: Clear guidance for troubleshooting
-- **Comprehensive logging**: Full operation tracking with timestamps
+### 📊 Advanced Error Handling
+- **Detailed exit codes**: Specific codes for different scenarios
+- **Progress tracking**: Full operation logging with timestamps
+- **Safe operations**: Validation before making changes
 
 ## 📦 What's Included
 
@@ -65,19 +88,12 @@ Complete Radarr movie folder rename system with comprehensive improvements and n
 4. **Test safely**: Use `run.ps1 -MaxMovies 5` to test with 5 movies first
 5. **Integrate with Radarr**: Configure as custom script in Radarr settings
 
-## 🔄 Upgrade from Previous Versions
-
-- **Backup your config**: Save your existing configuration
-- **Replace scripts**: Update all script files
-- **Update config**: Add new MaxMovies and quality options
-- **Test first**: Use MaxMovies parameter before full deployment
-
 ## 🛡️ Safety Features
 
-- **MaxMovies parameter**: Test with limited movie count
+- **MaxMovies parameter**: Test with limited movie count before full deployment
 - **Comprehensive validation**: API key, paths, and dependency checking
-- **Detailed logging**: Full operation tracking
-- **Rollback support**: Clear error messages for troubleshooting
+- **Detailed logging**: Full operation tracking and error reporting
+- **Non-destructive**: Only renames folders, doesn't modify movie files
 
 ## 📋 Requirements
 
@@ -88,4 +104,4 @@ Complete Radarr movie folder rename system with comprehensive improvements and n
 
 ---
 
-**Full changelog and documentation available in README.md** 
+**Complete setup guide and configuration options available in README.md** 
