@@ -21,7 +21,7 @@
 ```
 /movies/Marvel Cinematic Universe (2008) - Iron Man [1080p]/
 /movies/The Dark Knight (2008) [1080p]/
-/movies/Marvel Cinematic Universe (2019) - Avengers Endgame [4K]/
+/movies/Marvel Cinematic Universe (2019) - Avengers Endgame [2160p]/
 /movies/The Lord of the Rings Collection (2001) - Fellowship of the Ring [1080p]/
 /movies/Parasite (2019) [1080p]/
 ```
@@ -29,7 +29,7 @@
 ### ✨ Key Benefits
 
 - **🎬 Collection Organization**: Group franchise movies together (Marvel, DC, Star Wars, etc.)
-- **🏷️ Quality Tags**: Clear quality indicators (4K, 1080p, 720p, DVD-Rip, etc.)
+- **🏷️ Quality Tags**: Clear quality indicators (2160p, 1080p, 720p, DVD-Rip, etc.)
 - **🌍 Multi-Language Support**: Use native language titles for foreign films
 - **📁 Consistent Naming**: Uniform folder structure across your entire library
 - **🔄 Radarr Integration**: Works seamlessly with your existing Radarr setup
@@ -89,7 +89,6 @@ rename-script/
 ├── get-movie-ids.ps1            # Testing utility: List movies with IDs
 ├── get-single-movie.ps1         # Testing utility: Get single movie info
 ├── logs/                        # Log files directory (created automatically)
-├── releases/                    # Release files and documentation
 └── README.md                    # Complete documentation
 ```
 
@@ -240,7 +239,7 @@ INCLUDE_QUALITY_TAG=true
 **Result (movies with AND without collections coexist):**
 ```
 Marvel Cinematic Universe (2008) - Iron Man [1080p]          # Has collection
-The Lord of the Rings Collection (2001) - Fellowship of the Ring [4K]  # Has collection  
+The Lord of the Rings Collection (2001) - Fellowship of the Ring [2160p]  # Has collection  
 Parasite (2019) [1080p]                                      # No collection - simple format
 Joker (2019) [1080p]                                         # No collection - simple format
 ```
@@ -253,7 +252,7 @@ INCLUDE_QUALITY_TAG=true
 **Result (uniform format, collections ignored):**
 ```
 Iron Man (2008) [1080p]                    # Collection ignored
-Fellowship of the Ring (2001) [4K]         # Collection ignored
+Fellowship of the Ring (2001) [2160p]         # Collection ignored
 Parasite (2019) [1080p]                    # No collection anyway
 Joker (2019) [1080p]                       # No collection anyway
 ```
@@ -506,14 +505,14 @@ The script uses **automatic detection** - no specific Radarr quality profile con
 # These Radarr quality profiles would be detected as:
 "Ultra-HD" → 2160p          # Contains "4k" or "2160"
 "HD-1080p" → 1080p          # Contains "1080"  
-"HD-720p" → 720p            # Contains "720"
-"DVD" → DVD-Rip             # Contains "dvd"
-"HDTV-480p" → 480p          # Contains "480"
-"SDTV" → 480p               # Contains "sdtv"
 "WEBDL-1080p" → 1080p       # Contains "webdl"
 "Bluray-1080p" → 1080p      # Contains "bluray"
 "WebRip-1080p" → 1080p      # Contains "webrip"
+"HD-720p" → 720p            # Contains "720"
+"DVD" → DVD-Rip             # Contains "dvd"
 "DVD-576p" → DVD-Rip        # Contains "576"
+"HDTV-480p" → 480p          # Contains "480"
+"SDTV" → 480p               # Contains "sdtv"
 "Custom Quality" → LowQuality  # No recognizable pattern
 ```
 
