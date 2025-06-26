@@ -180,13 +180,36 @@ quality_tag(){          # 1-N tracks → tag
 
 sanitize(){             # Clean for Windows (maintains UTF-8)
   local s="$1"
+  
+  # Remove hearts and other decorative symbols
   s=$(perl -CS -Mutf8 -pe 's/[♥\x{2764}]//g; s/ć/c/g; s/Ć/C/g' <<<"$s")
+  
+  # Handle superscripts and subscripts - convert to regular numbers
+  # Superscripts: ⁰¹²³⁴⁵⁶⁷⁸⁹
+  s=$(perl -CS -Mutf8 -pe 's/⁰/0/g; s/¹/1/g; s/²/2/g; s/³/3/g; s/⁴/4/g; s/⁵/5/g; s/⁶/6/g; s/⁷/7/g; s/⁸/8/g; s/⁹/9/g' <<<"$s")
+  
+  # Subscripts: ₀₁₂₃₄₅₆₇₈₉ 
+  s=$(perl -CS -Mutf8 -pe 's/₀/0/g; s/₁/1/g; s/₂/2/g; s/₃/3/g; s/₄/4/g; s/₅/5/g; s/₆/6/g; s/₇/7/g; s/₈/8/g; s/₉/9/g' <<<"$s")
+  
+  # Handle various quote types - normalize to single quote
   s=${s//[$'\u2018\u2019\u201A\u201B\u0060\u00B4']/\'}
+  
+  # Handle various dash/bullet types - normalize to hyphen
   s=${s//[•·–—]/-}
+  
+  # Handle various colon types - convert to " - " for readability
   s=$(perl -CS -Mutf8 -pe 's/[:\x{F03A}\x{FF1A}\x{FE55}\x{A789}]/ - /g' <<<"$s")
+  
+  # Handle various slash types - convert to hyphen
   s=$(perl -CS -Mutf8 -pe 's![/\\\x{2215}\x{2044}]!-!g' <<<"$s")
+  
+  # Remove Windows-forbidden characters - replace with space
   s=${s//[<>\"?*|]/ }
+  
+  # Clean up spacing and normalize " - " sequences
   s=$(sed -E 's/[[:space:]]+/ /g; s/ - +/ - /g; s/^ //; s/ $//' <<<"$s")
+  
+  # Fallback to original if sanitization resulted in empty string
   [[ -z $s ]] && s="$1"
   printf '%s' "$s"
 }
