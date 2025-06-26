@@ -28,6 +28,20 @@ Perfect if you're bilingual or prefer original titles for foreign films.
   - **Auto-rename**: Add as Radarr custom script - renames new downloads automatically
   - **Bulk processing**: Process your entire library in one command (tested with 9000+ movies)
 
+### **Cross-Platform Support**
+- **Radarr**: Only basic renaming, OS-dependent limitations
+- **This script**: Works on Windows, Linux, and macOS with proper dependencies
+
+### **Flexible Configuration**
+- **Radarr**: Fixed naming patterns, can't easily toggle features
+- **This script**: Toggle collections on/off, quality tags on/off, configure languages independently
+
+### **Smart Placeholder Handling**
+- **Radarr**: If movie has no collection, you get ugly empty placeholders: `" - (2019) Movie Title []"`
+- **This script**: Adapts the pattern automatically:
+  - **With collection**: `Marvel Cinematic Universe (2008) - Iron Man [1080p]`
+  - **No collection**: `Iron Man (2008) [1080p]` (clean, no empty dashes)
+
 ### **TMDB Integration**
 - **Radarr**: Limited metadata sources
 - **This script**: Pull native language titles directly from TMDB when needed
@@ -67,13 +81,43 @@ RADARR_API_KEY=your_api_key_here
 NATIVE_LANGUAGE=es              # Spanish movies show Spanish titles
 FALLBACK_LANGUAGE=en            # English movies show English titles
 
-# What you want in folder names
-USE_COLLECTIONS=true            # Group franchise movies together
-INCLUDE_QUALITY_TAG=true        # Add [1080p], [720p], etc.
+# Folder naming options - toggle what you want
+USE_COLLECTIONS=true            # true: "Collection - Title", false: just "Title"
+INCLUDE_QUALITY_TAG=true        # true: add [1080p], false: no quality tags
 
-# Paths (Windows example)
+# Optional TMDB integration for better native language titles
+TMDB_API_KEY=your_tmdb_key      # Leave empty to disable
+
+# Paths (adjust for your OS)
+# Windows:
 SCRIPTS_DIR=C:\scripts\
 GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe
+
+# Linux/macOS:
+# SCRIPTS_DIR=/home/user/scripts/
+# GIT_BASH_PATH=/bin/bash
+```
+
+### Naming Pattern Examples
+
+With these settings you get different results:
+
+```bash
+# USE_COLLECTIONS=true, INCLUDE_QUALITY_TAG=true
+"Marvel Cinematic Universe (2008) - Iron Man [1080p]"
+"The Dark Knight (2008) [1080p]"  # No collection = no empty placeholder
+
+# USE_COLLECTIONS=false, INCLUDE_QUALITY_TAG=true  
+"Iron Man (2008) [1080p]"
+"The Dark Knight (2008) [1080p]"
+
+# USE_COLLECTIONS=true, INCLUDE_QUALITY_TAG=false
+"Marvel Cinematic Universe (2008) - Iron Man"
+"The Dark Knight (2008)"
+
+# USE_COLLECTIONS=false, INCLUDE_QUALITY_TAG=false
+"Iron Man (2008)"
+"The Dark Knight (2008)"
 ```
 
 ## Usage
@@ -151,9 +195,21 @@ This way new movies get organized automatically while you can bulk-process exist
 
 ## Requirements
 
-- **Windows**: Git Bash (comes with Git for Windows)
-- **Linux/macOS**: bash, curl, jq, PowerShell Core
+### Windows
+- Git Bash (comes with Git for Windows)
+- PowerShell 5.1+ (usually pre-installed)
+
+### Linux  
+- bash, curl, jq (install via package manager)
+- PowerShell Core (for bulk processing with `run.ps1`)
+
+### macOS
+- bash (pre-installed), curl, jq (via Homebrew)
+- PowerShell Core (via Homebrew: `brew install --cask powershell`)
+
+### All Platforms
 - **Radarr**: Any recent version with API access
+- **TMDB API key**: Optional, for enhanced native language support
 
 ## Development
 
