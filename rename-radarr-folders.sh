@@ -54,7 +54,7 @@ RSYNC_OPTIONS="${RSYNC_OPTIONS:--a --ignore-existing}"
 USE_COLLECTIONS="${USE_COLLECTIONS:-true}"
 INCLUDE_QUALITY_TAG="${INCLUDE_QUALITY_TAG:-true}"
 
-log(){ printf '[%s] %s\n' "$(date +'%F %T')" "$*"; }
+log(){ printf '[%s] %s\n' "$(date +'%F %T')" "$*" >&2; }
 
 # Auto-detect language preferences from Radarr (optional)
 detect_radarr_language_preference() {
@@ -263,10 +263,28 @@ get_preferred_title() {
     native_lang=$(detect_radarr_language_preference)
   fi
   
-  local orig_lang=$(jq -r '.originalLanguage // empty' <<<"$movie_json")
+  # Extract language code from originalLanguage object (it might be an object with .name or just a string)
+  local orig_lang_name=$(jq -r '.originalLanguage.name // .originalLanguage // empty' <<<"$movie_json")
+  
+  # Map language names to ISO codes
+  local orig_lang=""
+  case "${orig_lang_name,,}" in
+    "spanish"|"español")     orig_lang="es" ;;
+    "english"|"inglés")      orig_lang="en" ;;
+    "french"|"français")     orig_lang="fr" ;;
+    "german"|"deutsch")      orig_lang="de" ;;
+    "italian"|"italiano")    orig_lang="it" ;;
+    "portuguese"|"português") orig_lang="pt" ;;
+    "japanese"|"日本語")      orig_lang="ja" ;;
+    "korean"|"한국어")        orig_lang="ko" ;;
+    "chinese"|"中文")        orig_lang="zh" ;;
+    "russian"|"русский")     orig_lang="ru" ;;
+    *)                       orig_lang="${orig_lang_name,,}" ;;  # Use as-is if already a code
+  esac
   
   log "🔤 Language preference: ${native_lang:-'(none)'} → ${fallback_lang}"
-  log "🌍 Movie original language: ${orig_lang:-'(unknown)'}"
+  log "🌍 Movie original language: '${orig_lang_name}' → '${orig_lang}'"
+  log "🔍 Language comparison: native='${native_lang}' vs original='${orig_lang}'"
   
   # TMDB Integration: ONLY for movies where original language matches native language
   if [[ -n $native_lang && $orig_lang == "$native_lang" ]]; then
@@ -456,27 +474,70 @@ fi
 [[ $HAS_FILE == true && ! -f "$DEST/$BASE" ]] && { log "❌ File not found in destination"; exit 95; }
 
 # ───────────── 8. PUT a Radarr ────────────────────────────────────────
-CLEAN=$(jq 'del(
-  .images,.statistics,.alternateTitles,.movieFile.mediaInfo,
-  .overview,.studio,.keywords,.ratings
-)' <<<"$MOVIE_JSON")
+# Create minimal JSON with proper type validation
+CLEAN=$(jq '{
+  id: (.id // 0),
+  title: (if (.title | type) == "string" then .title else (.title | tostring) end),
+  year: (.year // 0),
+  path: (if (.path | type) == "string" then .path else (.path | tostring) end),
+  monitored: (.monitored // false),
+  qualityProfileId: (.qualityProfileId // 0),
+  hasFile: (.hasFile // false),
+  movieFileId: (.movieFileId // 0)
+}' <<<"$MOVIE_JSON")
 
-if [[ $HAS_FILE == true ]]; then
-  UPD=$(jq --arg p "$DEST" --arg n "$NEW_FOLDER" --arg b "$BASE" --argjson q "$QP_ID" '
-    .folderPath=$p | .folderName=$n | .path=$p |
-    .qualityProfileId=$q |
-    .movieFile.path=($p+"\\"+$b) | .movieFile.relativePath=$b
-  ' <<<"$CLEAN")
-else
-  UPD=$(jq --arg p "$DEST" --arg n "$NEW_FOLDER" --argjson q "$QP_ID" '
-    .folderPath=$p | .folderName=$n | .path=$p | .qualityProfileId=$q
-  ' <<<"$CLEAN")
+# Debug: Validate that critical fields are strings
+log "🔍 JSON field validation:"
+title_type=$(echo "$CLEAN" | jq -r '.title | type')
+path_type=$(echo "$CLEAN" | jq -r '.path | type')
+log "   title type: $title_type"
+log "   path type: $path_type"
+
+if [[ "$title_type" != "string" || "$path_type" != "string" ]]; then
+  log "❌ Critical field type validation failed!"
+  log "   title: $title_type (should be string)"
+  log "   path: $path_type (should be string)"
+  exit 93
 fi
+
+# Update path in minimal JSON
+UPD=$(jq --arg p "$DEST" '.path=$p' <<<"$CLEAN")
+
+# Debug: Show the JSON being sent and save to temp file for inspection
+TEMP_JSON_FILE="./logs/radarr_put_debug.json"
+echo "$UPD" > "$TEMP_JSON_FILE"
+log "🔍 JSON being sent to Radarr (first 1000 chars):"
+log "$(echo "$UPD" | head -c 1000)..."
+log "🔍 Full JSON saved to: $TEMP_JSON_FILE"
+
+# Validate JSON structure
+if ! echo "$UPD" | jq empty 2>/dev/null; then
+  log "❌ Invalid JSON structure detected!"
+  log "🔍 JSON validation error:"
+  echo "$UPD" | jq empty 2>&1 | head -5 | while read line; do log "   $line"; done
+fi
+
+# Debug curl command
+log "🔍 Curl command being executed:"
+log "curl -X PUT -H 'X-Api-Key:$RADARR_API_KEY' -H 'Content-Type:application/json' -d '<JSON>' '$RADARR_URL/api/v3/movie/$ID'"
+
+# Try multiple curl approaches for UTF-8 support
+log "🔍 Attempting curl with UTF-8 encoding..."
+
+# Method 1: Save JSON to temp file and use --data-binary with file
+TEMP_JSON_REQUEST="./logs/radarr_request_$ID.json"
+echo "$UPD" > "$TEMP_JSON_REQUEST"
 
 HTTP=$(curl -s --max-time 30 --retry 2 --retry-delay 1 \
              -o "$TEMP_LOG_FILE" -w '%{http_code}' -X PUT \
-             -H "X-Api-Key:$RADARR_API_KEY" -H "Content-Type:application/json" \
-             -d "$UPD" "$RADARR_URL/api/v3/movie/$ID")
+             -H "X-Api-Key:$RADARR_API_KEY" \
+             -H "Content-Type:application/json; charset=utf-8" \
+             -H "Accept-Charset: utf-8" \
+             --data-binary "@$TEMP_JSON_REQUEST" \
+             "$RADARR_URL/api/v3/movie/$ID")
+
+# Clean up temp file
+rm -f "$TEMP_JSON_REQUEST" 2>/dev/null
 
 if [[ $HTTP != 200 && $HTTP != 202 ]]; then
   log "❌ PUT failed (HTTP $HTTP)"; sed -E 's/^/│ /' "$TEMP_LOG_FILE"; exit 92

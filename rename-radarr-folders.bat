@@ -1,8 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Load configuration from config.env file
-set "CONFIG_FILE=%~dp0config.env"
+REM Load configuration from config file (default: config.env, can be overridden with CONFIG_FILE env var)
+if not defined CONFIG_FILE set "CONFIG_FILE=%~dp0config.env"
+if not exist "%CONFIG_FILE%" set "CONFIG_FILE=%~dp0config.env"
 
 REM Read config.env and set environment variables
 if exist "%CONFIG_FILE%" (
@@ -31,6 +32,13 @@ if exist "%CONFIG_FILE%" (
     )
 )
 
+REM Expand ${SCRIPTS_DIR} in paths first
+if defined SCRIPTS_DIR (
+    if defined RENAME_SH_PATH (
+        set "RENAME_SH_PATH=!RENAME_SH_PATH:${SCRIPTS_DIR}=%SCRIPTS_DIR%!"
+    )
+)
+
 REM Use environment variables with fallback defaults
 if "%LOG_FILE%"=="" set "LOG_FILE=C:\path\to\your\logs\rename-radarr-folders.log"
 if "%GIT_BASH_PATH%"=="" set "GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe"
@@ -55,6 +63,7 @@ for %%F in ("%LOG_FILE%") do mkdir "%%~dpF" 2>nul
 echo [%date% %time%] Starting rename-radarr-folders >> "%LOG_FILE%"
 echo [%date% %time%] Git Bash: "%GIT_BASH_PATH%" >> "%LOG_FILE%"
 echo [%date% %time%] Script: "%RENAME_SH_PATH%" >> "%LOG_FILE%"
+echo [%date% %time%] SCRIPTS_DIR: "%SCRIPTS_DIR%" >> "%LOG_FILE%"
 
 REM Handle both Radarr environment variables and manual arguments
 if defined radarr_movie_id (
@@ -72,10 +81,10 @@ if defined radarr_movie_id (
     echo [%date% %time%] Mode: Command line arguments >> "%LOG_FILE%"
     echo [%date% %time%] Arguments: %* >> "%LOG_FILE%"
     
-    set "ARG1=radarr_movie_id=%~1"
-    set "ARG2=radarr_movie_title=%~2"
-    set "ARG3=radarr_movie_year=%~3"
-    set "ARG4=radarr_moviefile_quality=%~4"
+    set "ARG1=%~1"
+    set "ARG2=%~2"
+    set "ARG3=%~3"
+    set "ARG4=%~4"
 )
 
 echo [%date% %time%] Executing with arguments: >> "%LOG_FILE%"
