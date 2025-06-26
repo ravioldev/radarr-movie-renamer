@@ -1,5 +1,6 @@
 # Personal configuration files
 config-raviol.env
+configD.env
 *-personal.env
 *.local.env
 
