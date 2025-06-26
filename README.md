@@ -47,18 +47,24 @@ Perfect if you're bilingual or prefer original titles for foreign films.
 - **This script**: Pull native language titles directly from TMDB when needed
 
 ### **Better Folder Structure**
-Instead of this mess:
+**Radarr's naming problem**: If you set a pattern like `{Movie Collection} - ({Release Year}) {Movie Title} [{Quality Title}]` but the movie has no collection, you get ugly empty placeholders:
 ```
-Iron.Man.2008.1080p.BluRay.x264-GROUP/
-The Dark Knight (2008)/
-avengers_endgame_2019_4k/
+ - (2008) The Dark Knight []    # Empty collection and quality placeholders
+ - (2019) Joker []              # Looks broken and unprofessional
 ```
 
-You get this:
+**This script adapts intelligently**:
 ```
-Marvel Cinematic Universe (2008) - Iron Man [1080p]/
-The Dark Knight (2008) [1080p]/
-Marvel Cinematic Universe (2019) - Avengers Endgame [2160p]/
+Marvel Cinematic Universe (2008) - Iron Man [1080p]    # Has collection
+The Dark Knight (2008) [1080p]                         # No collection, clean format
+Joker (2019) [1080p]                                   # No empty dashes or brackets
+```
+
+Instead of random download names:
+```
+Iron.Man.2008.1080p.BluRay.x264-GROUP/
+The.Dark.Knight.2008.IMAX.1080p.BluRay.x264-SECTOR7/
+avengers_endgame_2019_4k_hdr_atmos/
 ```
 
 ## Quick Setup
