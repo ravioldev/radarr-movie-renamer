@@ -97,10 +97,17 @@ INCLUDE_QUALITY_TAG=true     # Include quality tags in folder names
 
 #### Bulk Processing (All Movies):
 ```powershell
+# Process all movies in your Radarr library
 .\run.ps1
+
+# Test mode: Process only first 5 movies (recommended for testing)
+.\run.ps1 -MaxMovies 5
+
+# Test mode: Process only first 10 movies
+.\run.ps1 -MaxMovies 10
 ```
 
-This processes all movies in your Radarr library at once.
+**🧪 Testing Recommendation**: Always use `-MaxMovies` parameter first to test with a small subset before processing your entire library.
 
 ## ⚙️ Configuration Options
 
@@ -144,6 +151,29 @@ This processes all movies in your Radarr library at once.
 | `SCRIPTS_DIR` | Directory containing the scripts | `C:\path\to\your\scripts` | `D:\scripts\rename script\` |
 | `LOG_FILE` | Log file location | `C:\path\to\your\logs\...` | `D:\scripts\logs\rename.log` |
 | `GIT_BASH_PATH` | Path to Git Bash executable | `C:\Program Files\Git\bin\bash.exe` | Same for most systems |
+
+## 🛡️ Path and Character Support
+
+### Spaces in Paths
+All scripts fully support paths with spaces without any special configuration:
+
+```bash
+# These paths work perfectly:
+SCRIPTS_DIR=D:\my scripts\rename script\
+LOG_FILE=C:\Program Files (x86)\Logs\rename-radarr-folders.log
+GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe
+```
+
+**No quotes or escaping needed** - the scripts handle spaces automatically.
+
+### Special Characters in Movie Titles
+The scripts handle special characters in movie titles correctly:
+
+- ✅ **Single quotes**: `'71 (2014)` → `'71 (2014) [1080p]`
+- ✅ **Commas**: `10,000 BC (2008)` → `10,000 BC (2008) [1080p]`
+- ✅ **Periods**: `10.0 Earthquake (2014)` → `10.0 Earthquake (2014) [1080p]`
+- ✅ **Hyphens**: `11-11-11 (2011)` → `11-11-11 (2011) [480p]`
+- ✅ **Unicode characters**: Properly sanitized for Windows compatibility
 
 ## 🏗️ Folder Naming Configuration
 
@@ -266,8 +296,11 @@ The scripts provide detailed logging for troubleshooting:
 
 ### Common Exit Codes
 
+#### Individual Script Exit Codes (rename-radarr-folders.bat/.sh)
+
 | Code | Meaning | Solution |
 |------|---------|----------|
+| 0 | Success | Movie processed successfully |
 | 1 | Git Bash not found | Check `GIT_BASH_PATH` in config |
 | 2 | Script file not found | Check `RENAME_BAT_PATH` and `RENAME_SH_PATH` |
 | 3 | jq not installed | Install jq from https://stedolan.github.io/jq/download/ |
@@ -277,6 +310,16 @@ The scripts provide detailed logging for troubleshooting:
 | 95 | File not found in destination | Check source files and permissions |
 | 96 | Source directory not found | Check movie paths in Radarr |
 | 97 | Failed to create destination directory | Check disk space and permissions |
+| 98 | Missing required parameter | Check movie ID, title, or year parameters |
+
+#### Bulk Processing Exit Codes (run.ps1)
+
+| Code | Meaning | Details |
+|------|---------|---------|
+| 0 | All movies processed successfully | No errors encountered |
+| 1 | One or more movies failed | Check logs for specific failures; some movies may have succeeded |
+
+**Note**: `run.ps1` shows detailed success/error counts: `✅ Success: 8 movies` / `❌ Errors: 2 movies`
 
 ## 🔄 Integration with Radarr
 
@@ -317,8 +360,14 @@ Use `run.ps1` when you want to process your entire library:
 # Process all movies in Radarr
 .\run.ps1
 
+# Test mode: Process only first 5 movies (recommended for testing)
+.\run.ps1 -MaxMovies 5
+
 # Use custom configuration file
 .\run.ps1 -ConfigFile "my-personal.env"
+
+# Combine MaxMovies with custom config for testing
+.\run.ps1 -ConfigFile "my-personal.env" -MaxMovies 10
 ```
 
 ### When to Use Each Method
@@ -329,6 +378,27 @@ Use `run.ps1` when you want to process your entire library:
 | **Manual Bulk** | Initial setup, mass reorganization | All movies | Manual execution |
 
 ## 🔧 Advanced Usage
+
+### Test Mode with MaxMovies Parameter
+
+**🧪 Always test with a subset first!** The `run.ps1` script includes a `-MaxMovies` parameter for safe testing:
+
+```powershell
+# Test with just 3 movies first
+.\run.ps1 -MaxMovies 3
+
+# Test with 10 movies after initial validation
+.\run.ps1 -MaxMovies 10
+
+# Only after successful testing, process all movies
+.\run.ps1
+```
+
+**Benefits of MaxMovies:**
+- ✅ **Safe testing**: Verify configuration with small subset
+- ✅ **Quick validation**: Check folder naming patterns before full run
+- ✅ **Error isolation**: Identify issues without affecting entire library
+- ✅ **Progress monitoring**: See detailed processing logs for each movie
 
 ### Custom Configuration Files
 
@@ -341,6 +411,9 @@ copy config.env my-personal.env
 # Edit my-personal.env with your specific settings
 # Then use it with run.ps1
 .\run.ps1 -ConfigFile "my-personal.env"
+
+# Combine with MaxMovies for safe testing
+.\run.ps1 -ConfigFile "my-personal.env" -MaxMovies 5
 ```
 
 **Note**: Personal config files (ending in `-personal.env` or `.local.env`) are automatically ignored by Git to protect your API keys and settings.
@@ -374,10 +447,10 @@ The script automatically detects video quality from Radarr's quality profiles an
 |-------------|-------------------|---------|
 | **2160p** | Contains "2160" or "4k" | Quality profile name or video resolution |
 | **1440p** | Contains "1440" | Quality profile name or video resolution |
-| **1080p** | Contains "1080" | Quality profile name or video resolution |
+| **1080p** | Contains "1080", "bluray", "webdl", "webrip" | Quality profile name or video resolution |
 | **720p** | Contains "720" | Quality profile name or video resolution |
 | **DVD-Rip** | Contains "576" or "dvd" | Quality profile name or video resolution |
-| **480p** | Contains "480" | Quality profile name or video resolution |
+| **480p** | Contains "480" or "sdtv" | Quality profile name or video resolution |
 | **LowQuality** | Everything else | Fallback for unrecognized formats |
 
 ### How Quality Detection Works
@@ -398,7 +471,11 @@ The script uses **automatic detection** - no specific Radarr quality profile con
 "HD-720p" → 720p            # Contains "720"
 "DVD" → DVD-Rip             # Contains "dvd"
 "HDTV-480p" → 480p          # Contains "480"
-"WEBDL-1080p" → 1080p       # Contains "1080"
+"SDTV" → 480p               # Contains "sdtv" - NEW MAPPING
+"WEBDL-1080p" → 1080p       # Contains "webdl" - ENHANCED MAPPING
+"Bluray-1080p" → 1080p      # Contains "bluray" - ENHANCED MAPPING
+"WebRip-1080p" → 1080p      # Contains "webrip" - ENHANCED MAPPING
+"DVD-576p" → DVD-Rip        # Contains "576" - ENHANCED MAPPING
 "Custom Quality" → LowQuality  # No recognizable pattern
 ```
 
@@ -432,6 +509,40 @@ Radarr Event → .bat → .sh → File Operations → Radarr API Update
 ```
 run.ps1 → Radarr API (get all movies) → .bat (per movie) → .sh → File Operations
 ```
+
+### Testing Utilities
+
+Two optional PowerShell helper scripts are included for safe testing:
+
+| Script | Purpose |
+|--------|---------|
+| `get-movie-ids.ps1` | Lists movies in Radarr, shows ID, path, quality and generates a ready-to-paste command for each title so you can run the rename script on a single movie. |
+| `get-single-movie.ps1` | Displays detailed information for one movie ID and prints the exact command plus the expected new folder name according to your current configuration. |
+
+#### get-movie-ids.ps1
+
+```powershell
+# List first 10 movies (default)
+./get-movie-ids.ps1
+
+# List movies containing the word "Matrix"
+./get-movie-ids.ps1 -SearchTitle "Matrix"
+
+# Show up to 50 results
+./get-movie-ids.ps1 -MaxResults 50
+```
+
+#### get-single-movie.ps1
+
+```powershell
+# Inspect movie with ID 123
+./get-single-movie.ps1 -MovieId 123
+```
+
+Both scripts are **read-only**: they never modify files or folders.  
+They simply query Radarr's API using the credentials stored in `config.env`.
+
+Use them to verify IDs, preview commands and confirm what the rename script will do before touching your library.
 
 ### Key Functions
 

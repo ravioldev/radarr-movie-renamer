@@ -2,7 +2,8 @@
 # Reads config.env and executes the rename process for all movies
 
 param(
-    [string]$ConfigFile = "config.env"
+    [string]$ConfigFile = "config.env",
+    [int]$MaxMovies = 0  # 0 = process all movies, any positive number = limit to that many movies
 )
 
 # Function to import environment variables from .env file
@@ -93,59 +94,106 @@ if ($logFile) {
 if ($scriptsDir) {
     Write-Host "   Scripts directory: $scriptsDir" -ForegroundColor Gray
 }
+if ($MaxMovies -gt 0) {
+    Write-Host "   🧪 Test mode: Processing max $MaxMovies movies" -ForegroundColor Yellow
+}
 
 try {
     # Get all movies from Radarr
-    $movies = Invoke-RestMethod -Headers @{ 'X-Api-Key' = $apiKey } -Uri "$radarr/api/v3/movie"
+    $allMovies = Invoke-RestMethod -Headers @{ 'X-Api-Key' = $apiKey } -Uri "$radarr/api/v3/movie"
     
-    Write-Host "`n📊 Found $($movies.Count) movies to process" -ForegroundColor Yellow
-    
-    $i = 0
-    foreach ($m in $movies) {
-        $i++
-        $qual = $m.movieFile.quality.quality.name
-        Write-Host "[$i/$($movies.Count)]  →  $($m.title)" -ForegroundColor White
-        
-        # Execute rename script with movie parameters
-        & $renameBatPath `
-          ("radarr_movie_id=$($m.id)") `
-          ("radarr_movie_title=$($m.title)") `
-          ("radarr_movie_year=$($m.year)") `
-          ("radarr_moviefile_quality=$qual")
-        
-        if ($LASTEXITCODE -ne 0) {
-            $errorMsg = "Script failed for movie: $($m.title) (Exit code: $LASTEXITCODE)"
-            Write-Warning $errorMsg
-            
-            # Log detailed error information if log file is configured
-            if ($logFile -and (Test-Path $logFile)) {
-                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                Add-Content -Path $logFile -Value "[$timestamp] PowerShell: $errorMsg"
-            }
-            
-            # Show common exit codes meaning
-            switch ($LASTEXITCODE) {
-                1 { Write-Host "   → Git Bash not found" -ForegroundColor Red }
-                2 { Write-Host "   → Script file not found" -ForegroundColor Red }
-                3 { Write-Host "   → jq not installed" -ForegroundColor Red }
-                4 { Write-Host "   → curl not installed" -ForegroundColor Red }
-                5 { Write-Host "   → RADARR_API_KEY not configured" -ForegroundColor Red }
-                90 { Write-Host "   → Failed to connect to Radarr API" -ForegroundColor Red }
-                92 { Write-Host "   → Failed to update Radarr database" -ForegroundColor Red }
-                95 { Write-Host "   → File not found in destination" -ForegroundColor Red }
-                96 { Write-Host "   → Source directory not found" -ForegroundColor Red }
-                97 { Write-Host "   → Failed to create destination directory" -ForegroundColor Red }
-                default { Write-Host "   → Unknown error (check log for details)" -ForegroundColor Red }
-            }
-        }
+    # Apply MaxMovies limit if specified
+    if ($MaxMovies -gt 0 -and $allMovies.Count -gt $MaxMovies) {
+        $movies = $allMovies | Select-Object -First $MaxMovies
+        Write-Host "`n📊 Found $($allMovies.Count) movies total, processing first $($movies.Count) (MaxMovies=$MaxMovies)" -ForegroundColor Yellow
+    } else {
+        $movies = $allMovies
+        Write-Host "`n📊 Found $($movies.Count) movies to process" -ForegroundColor Yellow
     }
     
-    Write-Host "`n✅ Batch rename process completed!" -ForegroundColor Green
+    $successCount = 0
+    $errorCount = 0
+    $i = 0
+    
+    foreach ($m in $movies) {
+        $i++
+        $qual = if ($m.movieFile -and $m.movieFile.quality -and $m.movieFile.quality.quality) { 
+            $m.movieFile.quality.quality.name 
+        } else { 
+            "Unknown" 
+        }
+        
+        Write-Host "[$i/$($movies.Count)] Processing: $($m.title) ($($m.year)) [$qual]" -ForegroundColor White
+        
+        # Prepare arguments for the batch script
+        # Use proper quoting to handle special characters like single quotes
+        $movieTitle = $m.title -replace "'", "\''"  # Escape single quotes for batch
+        $arguments = @(
+            $m.id,
+            "`"$movieTitle`"",
+            $m.year,
+            "`"$qual`""
+        )
+        
+        try {
+            # Use Start-Process with proper argument handling for spaces and special characters
+            $process = Start-Process -FilePath $renameBatPath -ArgumentList $arguments -Wait -PassThru -NoNewWindow
+            $exitCode = $process.ExitCode
+            
+            if ($exitCode -eq 0) {
+                Write-Host "   ✅ Success" -ForegroundColor Green
+                $successCount++
+            } else {
+                $errorMsg = "Script failed for movie: $($m.title) (Exit code: $exitCode)"
+                Write-Host "   ❌ Failed (Exit code: $exitCode)" -ForegroundColor Red
+                $errorCount++
+                
+                # Log detailed error information if log file is configured
+                if ($logFile -and (Test-Path $logFile)) {
+                    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    Add-Content -Path $logFile -Value "[$timestamp] PowerShell: $errorMsg"
+                }
+                
+                # Show common exit codes meaning
+                switch ($exitCode) {
+                    1 { Write-Host "      → Git Bash not found" -ForegroundColor Red }
+                    2 { Write-Host "      → Script file not found" -ForegroundColor Red }
+                    3 { Write-Host "      → jq not installed" -ForegroundColor Red }
+                    4 { Write-Host "      → curl not installed" -ForegroundColor Red }
+                    5 { Write-Host "      → RADARR_API_KEY not configured" -ForegroundColor Red }
+                    90 { Write-Host "      → Failed to connect to Radarr API" -ForegroundColor Red }
+                    92 { Write-Host "      → Failed to update Radarr database" -ForegroundColor Red }
+                    95 { Write-Host "      → File not found in destination" -ForegroundColor Red }
+                    96 { Write-Host "      → Source directory not found" -ForegroundColor Red }
+                    97 { Write-Host "      → Failed to create destination directory" -ForegroundColor Red }
+                    default { Write-Host "      → Unknown error (check log for details)" -ForegroundColor Red }
+                }
+            }
+        }
+        catch {
+            Write-Host "   ❌ Exception: $($_.Exception.Message)" -ForegroundColor Red
+            $errorCount++
+        }
+        
+        # Add a small delay between movies to avoid overwhelming the system
+        Start-Sleep -Milliseconds 100
+    }
+    
+    Write-Host "`n📈 Batch rename process completed!" -ForegroundColor Green
+    Write-Host "   ✅ Success: $successCount movies" -ForegroundColor Green
+    if ($errorCount -gt 0) {
+        Write-Host "   ❌ Errors: $errorCount movies" -ForegroundColor Red
+    }
     
     # Log completion if log file is configured
     if ($logFile) {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Add-Content -Path $logFile -Value "[$timestamp] PowerShell: Batch process completed successfully - $($movies.Count) movies processed"
+        Add-Content -Path $logFile -Value "[$timestamp] PowerShell: Batch process completed - $successCount success, $errorCount errors out of $($movies.Count) movies processed"
+    }
+    
+    # Exit with error code if there were failures
+    if ($errorCount -gt 0) {
+        exit 1
     }
 }
 catch {

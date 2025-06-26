@@ -119,12 +119,21 @@ quality_tag(){          # 1-N tracks → tag
     [[ -z "$v" || "$v" == "null" ]] && continue
     
     case "${v,,}" in
+      # High resolution formats
       *2160*|*4k*) echo "2160p"; return ;;
       *1440*)      echo "1440p"; return ;;
       *1080*)      echo "1080p"; return ;;
       *720*)       echo "720p" ; return ;;
+      
+      # DVD and standard definition formats
       *576*|*dvd*) echo "DVD-Rip"; return ;;
       *480*)       echo "480p" ; return ;;
+      
+      # Specific Radarr quality names
+      *sdtv*)      echo "480p" ; return ;;  # Map SDTV to 480p
+      *webdl*)     echo "1080p"; return ;;  # Common WebDL format
+      *bluray*)    echo "1080p"; return ;;  # Common Bluray format
+      *webrip*)    echo "1080p"; return ;;  # Common WebRip format
     esac
   done
   # Fallback if no patterns matched
@@ -145,17 +154,54 @@ sanitize(){             # Clean for Windows (maintains UTF-8)
 }
 
 drive(){ echo "${1%%:*}"; }
-copy_tree(){ rsync $RSYNC_OPTIONS --chmod=$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE "$1"/ "$2"/; }
+# Fix: Quote paths in rsync command to handle spaces
+copy_tree(){ rsync $RSYNC_OPTIONS --chmod="$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE" "$1/" "$2/"; }
 norm(){ tr '\\' '/' <<<"$1"; }
 
 # ───────────── 3. Arguments var=val ──────────────────────────────────
-for a in "$@"; do case $a in
-  radarr_movie_id=*)          radarr_movie_id=${a#*=} ;;
-  radarr_movie_title=*)       radarr_movie_title=${a#*=} ;;
-  radarr_movie_year=*)        radarr_movie_year=${a#*=} ;;
-  radarr_moviefile_quality=*) radarr_moviefile_quality=${a#*=} ;;
-esac; done
-: "${radarr_movie_id:?}" "${radarr_movie_title:?}" "${radarr_movie_year:?}"
+# Enhanced argument parsing with better handling of special characters
+for a in "$@"; do 
+  case $a in
+    radarr_movie_id=*)          
+      radarr_movie_id=${a#*=} 
+      log "📋 Parsed movie ID: $radarr_movie_id"
+      ;;
+    radarr_movie_title=*)       
+      radarr_movie_title=${a#*=}
+      # Handle escaped quotes and special characters
+      radarr_movie_title=${radarr_movie_title//\\\'/\'}  # Convert \' to '
+      radarr_movie_title=${radarr_movie_title//\\\"/\"}  # Convert \" to "
+      log "📋 Parsed movie title: $radarr_movie_title"
+      ;;
+    radarr_movie_year=*)        
+      radarr_movie_year=${a#*=} 
+      log "📋 Parsed movie year: $radarr_movie_year"
+      ;;
+    radarr_moviefile_quality=*) 
+      radarr_moviefile_quality=${a#*=} 
+      log "📋 Parsed movie quality: $radarr_moviefile_quality"
+      ;;
+    *)
+      log "⚠️  Unknown argument: $a"
+      ;;
+  esac
+done
+
+# Validate required parameters with better error messages
+if [[ -z $radarr_movie_id ]]; then
+  log "❌ Missing required parameter: radarr_movie_id"
+  exit 98
+fi
+if [[ -z $radarr_movie_title ]]; then
+  log "❌ Missing required parameter: radarr_movie_title"
+  exit 98
+fi
+if [[ -z $radarr_movie_year ]]; then
+  log "❌ Missing required parameter: radarr_movie_year"
+  exit 98
+fi
+
+log "✅ All required parameters validated"
 ID=$radarr_movie_id
 
 # ───────────── 4. Metadata ───────────────────────────────────────────
@@ -185,33 +231,29 @@ get_preferred_title() {
   local target_lang="$fallback_lang"
   if [[ -n $native_lang && $orig_lang == "$native_lang" ]]; then
     target_lang="$native_lang"
-    log "🌍 Movie is originally in $native_lang - using native language preference"
-  else
-    log "🌐 Movie is originally in ${orig_lang:-'unknown'} - using fallback language ($fallback_lang)"
   fi
   
   # Step 1: If using native language and movie is originally in that language, prefer original title
   if [[ $target_lang == "$native_lang" && $orig_lang == "$native_lang" ]]; then
     title=$(jq -r '.originalTitle // .title' <<<"$movie_json")
-    [[ -n $title && $title != null ]] && { log "✅ Using original title (native language)"; echo "$title"; return; }
+    [[ -n $title && $title != null ]] && { echo "$title"; return; }
   fi
   
   # Step 2: Look for alternative title in target language
   title=$(jq -r ".alternativeTitles[]? | select(.language==\"$target_lang\") | .title" <<<"$movie_json" | head -n1)
-  [[ -n $title && $title != null ]] && { log "✅ Using $target_lang alternative title"; echo "$title"; return; }
+  [[ -n $title && $title != null ]] && { echo "$title"; return; }
   
   # Step 3: Look for alternative title in fallback language (if different from target)
   if [[ $target_lang != "$fallback_lang" ]]; then
     title=$(jq -r ".alternativeTitles[]? | select(.language==\"$fallback_lang\") | .title" <<<"$movie_json" | head -n1)
-    [[ -n $title && $title != null ]] && { log "✅ Using $fallback_lang fallback title"; echo "$title"; return; }
+    [[ -n $title && $title != null ]] && { echo "$title"; return; }
   fi
   
   # Step 4: Use default title from Radarr
   title=$(jq -r '.title' <<<"$movie_json")
-  [[ -n $title && $title != null ]] && { log "✅ Using default Radarr title"; echo "$title"; return; }
+  [[ -n $title && $title != null ]] && { echo "$title"; return; }
   
   # Step 5: Final fallback to parameter
-  log "⚠️  Using parameter title (last resort)"
   echo "$radarr_movie_title"
 }
 
@@ -221,6 +263,10 @@ TITLE_RAW=$(get_preferred_title "$MOVIE_JSON" "$NATIVE_LANGUAGE" "$FALLBACK_LANG
 QUALITY_NAME=${radarr_moviefile_quality:-$(jq -r '.movieFile.quality.quality.name // empty' <<<"$MOVIE_JSON")}
 RESOLUTION=$(jq -r '.movieFile.mediaInfo.video.resolution // empty' <<<"$MOVIE_JSON")
 SIMPLE=$(quality_tag "$QUALITY_NAME" "$RESOLUTION")
+
+# Debug quality processing
+log "🔍 Quality Debug:"
+log "   SIMPLE (quality_tag result): ${SIMPLE:-'(empty)'}"
 
 ROOT=$(jq -r '.rootFolderPath' <<<"$MOVIE_JSON"); [[ $ROOT != *[\\/] ]] && ROOT+="\\"
 
@@ -236,34 +282,19 @@ build_folder_name() {
   local collection="$4"
   local folder_name=""
   
-  log "🏗️  Building folder name..."
-  log "   Title: $title"
-  log "   Year: $year"
-  log "   Quality: $quality"
-  log "   Collection: ${collection:-'(none)'}"
-  log "   Use collections: $USE_COLLECTIONS"
-  log "   Include quality: $INCLUDE_QUALITY_TAG"
-  
   # Start with base: Title (Year)
   folder_name="$title ($year)"
   
   # Add collection prefix if enabled and available
   if [[ $USE_COLLECTIONS == "true" && -n $collection ]]; then
     folder_name="$collection ($year) - $title"
-    log "✅ Using collection format: Collection (Year) - Title"
-  else
-    log "✅ Using simple format: Title (Year)"
   fi
   
   # Add quality suffix if enabled
   if [[ $INCLUDE_QUALITY_TAG == "true" && -n $quality ]]; then
     folder_name="$folder_name [$quality]"
-    log "✅ Added quality tag: [$quality]"
-  else
-    log "ℹ️  Quality tag omitted"
   fi
   
-  log "🎯 Final folder name: $folder_name"
   echo "$folder_name"
 }
 
@@ -272,16 +303,22 @@ COLL=$(sanitize "$COLLECTION_TITLE")
 NEW_FOLDER=$(build_folder_name "$TITLE" "$radarr_movie_year" "$SIMPLE" "$COLL")
 NEW_FOLDER=$(sanitize "$NEW_FOLDER")
 DEST="${ROOT}${NEW_FOLDER}"
-log "🔄 Destination → $DEST"
+
+log "🔍 Final Results:"
+log "   TITLE_RAW: $TITLE_RAW"
+log "   TITLE: $TITLE"
+log "   SIMPLE: $SIMPLE"
+log "   NEW_FOLDER: $NEW_FOLDER"
+log "   DEST: $DEST"
 
 # ───────────── 6. Current paths & possible renaming ─────────────────
 OLD=$(jq -r '.movieFile.path // empty' <<<"$MOVIE_JSON")
 ORIG_DIR=$(dirname "${OLD:-.}")
 [[ -d "${radarr_movie_path:-}" ]] && ORIG_DIR="$radarr_movie_path"
-[[ ! -d $ORIG_DIR ]] && ORIG_DIR=$(jq -r '.path' <<<"$MOVIE_JSON")
+[[ ! -d "$ORIG_DIR" ]] && ORIG_DIR=$(jq -r '.path' <<<"$MOVIE_JSON")
 
 # Validate source directory exists
-if [[ ! -d $ORIG_DIR ]]; then
+if [[ ! -d "$ORIG_DIR" ]]; then
   log "❌ Source directory not found: $ORIG_DIR"
   log "ℹ️  Available paths checked:"
   log "   • movieFile.path: ${OLD:-'(empty)'}"
@@ -299,8 +336,8 @@ fi
 
 BASE=$(jq -r '.movieFile.relativePath // empty' <<<"$MOVIE_JSON")
 [[ -z $BASE || $BASE == null ]] && BASE=$(basename "${OLD:-dummy.mkv}")
-if [[ ! -f $OLD ]]; then
-  # Build find command with configurable extensions
+if [[ ! -f "$OLD" ]]; then
+  # Fix: Build find command with configurable extensions and proper quoting
   find_cmd="find \"$ORIG_DIR\" -maxdepth $FIND_MAXDEPTH -type f \\("
   first=true
   for ext in $VIDEO_EXTENSIONS; do
@@ -309,16 +346,23 @@ if [[ ! -f $OLD ]]; then
   done
   find_cmd+=" \\) | head -n1"
   OLD=$(eval "$find_cmd")
-  [[ -n $OLD ]] && BASE=$(basename "$OLD")
+  [[ -n "$OLD" ]] && BASE=$(basename "$OLD")
 fi
 
-# Rename only tag
-if [[ -d $ORIG_DIR && "$ORIG_DIR" != "$DEST" && "${ORIG_DIR%[*}" == "${DEST%[*}" ]]; then
-  mv -n "$ORIG_DIR" "$DEST" && ORIG_DIR="$DEST" && log "📂 Folder renamed to new quality"
+# Rename folder if different from destination
+if [[ -d "$ORIG_DIR" && "$ORIG_DIR" != "$DEST" ]]; then
+  log "🔄 Renaming folder from: $ORIG_DIR"
+  log "🔄 Renaming folder to: $DEST"
+  if mv -n "$ORIG_DIR" "$DEST" 2>/dev/null; then
+    ORIG_DIR="$DEST"
+    log "✅ Folder successfully renamed"
+  else
+    log "⚠️  Could not rename folder directly, will create new destination"
+  fi
 fi
-[[ ! -d $DEST ]] && { DEST="$ORIG_DIR"; NEW_FOLDER=$(basename "$DEST"); }
 
 # ───────────── 7. Copy / move content ────────────────────────────
+# Fix: Quote destination path to handle spaces
 if ! mkdir -p "$DEST"; then
   log "❌ Failed to create destination directory: $DEST"
   log "ℹ️  Check permissions and disk space"
@@ -327,10 +371,13 @@ fi
 log "📁 Destination directory ready: $DEST"
 if [[ $(drive "$ORIG_DIR") == $(drive "$DEST") ]]; then
   shopt -s dotglob nullglob
+  # Fix: Quote paths in mv command to handle spaces
   mv -n "$ORIG_DIR"/* "$DEST"/ 2>/dev/null || true
   shopt -u dotglob nullglob
-  [[ -d $ORIG_DIR && "$ORIG_DIR" != "$DEST" ]] && rmdir "$ORIG_DIR" 2>/dev/null || true
+  # Fix: Quote paths in rmdir command to handle spaces
+  [[ -d "$ORIG_DIR" && "$ORIG_DIR" != "$DEST" ]] && rmdir "$ORIG_DIR" 2>/dev/null || true
 else
+  # Fix: Quote paths in copy_tree function call
   copy_tree "$ORIG_DIR" "$DEST"
 fi
 [[ $HAS_FILE == true && ! -f "$DEST/$BASE" ]] && { log "❌ File not found in destination"; exit 95; }
