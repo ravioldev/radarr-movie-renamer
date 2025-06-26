@@ -23,10 +23,8 @@ Perfect if you're bilingual or prefer original titles for foreign films.
 - **This script**: Clean `[1080p]`, `[2160p]`, `[720p]` tags that work with every quality profile
 
 ### **Dual Usage: Auto-Rename + Bulk Processing**
-- **Radarr**: Rename movies one by one through the UI (painful for large libraries)
-- **This script**: Two ways to use it:
-  - **Auto-rename**: Add as Radarr custom script - renames new downloads automatically
-  - **Bulk processing**: Process your entire library in one command (tested with 9000+ movies)
+- **Auto-rename**: Add as Radarr custom script - renames new downloads automatically
+- **Bulk processing**: Process your entire library in one command (tested with 9000+ movies)
 
 ### **Cross-Platform Support**
 - **Radarr**: Only basic renaming, OS-dependent limitations
