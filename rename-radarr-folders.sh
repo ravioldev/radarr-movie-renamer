@@ -82,30 +82,68 @@ detect_radarr_language_preference() {
   return 1
 }
 
-# TMDB integration (optional)
+# TMDB integration (optional) - Only called for native language movies
 fetch_tmdb_data() {
   local tmdb_id="$1"
   local language="$2"
   
-  [[ -z $TMDB_API_KEY ]] && { log "ℹ️  TMDB disabled (no API key)"; return 1; }
-  [[ -z $tmdb_id || $tmdb_id == null ]] && { log "ℹ️  No TMDB ID available"; return 1; }
+  # Validate TMDB API key
+  if [[ -z $TMDB_API_KEY ]]; then
+    log "ℹ️  TMDB disabled (no API key configured)"
+    return 1
+  fi
   
-  log "🎬 Fetching TMDB data (ID: $tmdb_id, Lang: $language)"
+  # Validate TMDB ID
+  if [[ -z $tmdb_id || $tmdb_id == "null" || $tmdb_id == "0" ]]; then
+    log "ℹ️  No valid TMDB ID available (ID: ${tmdb_id:-'empty'})"
+    return 1
+  fi
   
-  local tmdb_url="https://api.themoviedb.org/3/movie/$tmdb_id"
-  [[ -n $language ]] && tmdb_url+="?language=$language"
+  # Validate language parameter
+  if [[ -z $language ]]; then
+    log "⚠️  No language specified for TMDB fetch"
+    return 1
+  fi
   
-  # Add timeout and retry logic for TMDB API
+  log "🎬 Fetching TMDB data (ID: $tmdb_id, Language: $language)"
+  
+  # Build TMDB API URL with language parameter
+  local tmdb_url="https://api.themoviedb.org/3/movie/$tmdb_id?language=$language"
+  
+  # Call TMDB API with timeout and retry logic
   local tmdb_json=$(curl -sf --max-time 10 --retry 2 --retry-delay 1 \
                          -H "Authorization: Bearer $TMDB_API_KEY" \
+                         -H "Accept: application/json" \
                          "$tmdb_url" 2>/dev/null)
   
-  if [[ $? -eq 0 && -n $tmdb_json ]]; then
-    log "✅ TMDB data fetched successfully"
-    echo "$tmdb_json"
-    return 0
+  local curl_exit_code=$?
+  
+  if [[ $curl_exit_code -eq 0 && -n $tmdb_json ]]; then
+    # Validate that we got valid JSON response
+    local tmdb_title=$(jq -r '.title // empty' <<<"$tmdb_json" 2>/dev/null)
+    local tmdb_status=$(jq -r '.status_message // empty' <<<"$tmdb_json" 2>/dev/null)
+    
+    if [[ -n $tmdb_status ]]; then
+      log "⚠️  TMDB API error: $tmdb_status"
+      return 1
+    fi
+    
+    if [[ -n $tmdb_title && $tmdb_title != "null" ]]; then
+      log "✅ TMDB data fetched successfully - Title: $tmdb_title"
+      echo "$tmdb_json"
+      return 0
+    else
+      log "⚠️  TMDB returned empty title for language $language"
+      return 1
+    fi
   else
-    log "⚠️  TMDB fetch failed (timeout or API error)"
+    case $curl_exit_code in
+      6)  log "⚠️  TMDB fetch failed: Could not resolve host" ;;
+      7)  log "⚠️  TMDB fetch failed: Failed to connect" ;;
+      28) log "⚠️  TMDB fetch failed: Operation timeout" ;;
+      22) log "⚠️  TMDB fetch failed: HTTP error (possibly invalid API key)" ;;
+      *)  log "⚠️  TMDB fetch failed: curl error code $curl_exit_code" ;;
+    esac
     return 1
   fi
 }
@@ -213,7 +251,7 @@ HAS_FILE=$(jq -r '.hasFile' <<<"$MOVIE_JSON")
 QP_ID=$(jq  -r '.qualityProfileId' <<<"$MOVIE_JSON")
 LANG=$(jq   -r '.originalLanguage // empty' <<<"$MOVIE_JSON")
 
-# 4.1 Preferred title with native language detection
+# 4.1 Preferred title with native language detection and TMDB integration
 get_preferred_title() {
   local movie_json="$1"
   local native_lang="$2"
@@ -227,37 +265,70 @@ get_preferred_title() {
   
   local orig_lang=$(jq -r '.originalLanguage // empty' <<<"$movie_json")
   
-  # Determine which language to use based on movie's original language
-  local target_lang="$fallback_lang"
+  log "🔤 Language preference: ${native_lang:-'(none)'} → ${fallback_lang}"
+  log "🌍 Movie original language: ${orig_lang:-'(unknown)'}"
+  
+  # TMDB Integration: ONLY for movies where original language matches native language
   if [[ -n $native_lang && $orig_lang == "$native_lang" ]]; then
-    target_lang="$native_lang"
-  fi
-  
-  # Step 1: If using native language and movie is originally in that language, prefer original title
-  if [[ $target_lang == "$native_lang" && $orig_lang == "$native_lang" ]]; then
+    log "🌍 Movie is originally in $native_lang - using native language preference"
+    
+    # Step 1: Try TMDB for native language title (only for native language movies)
+    local tmdb_id=$(jq -r '.tmdbId // empty' <<<"$movie_json")
+    if [[ -n $tmdb_id && $tmdb_id != "null" && $tmdb_id != "0" ]]; then
+      log "🎬 Attempting TMDB lookup (ID: $tmdb_id, Language: $native_lang)"
+      local tmdb_data=$(fetch_tmdb_data "$tmdb_id" "$native_lang")
+      if [[ -n $tmdb_data ]]; then
+        title=$(jq -r '.title // empty' <<<"$tmdb_data" 2>/dev/null)
+        if [[ -n $title && $title != "null" ]]; then
+          log "✅ Using TMDB title: $title"
+          echo "$title"
+          return
+        else
+          log "⚠️  TMDB returned empty title"
+        fi
+      else
+        log "⚠️  TMDB fetch failed or returned no data"
+      fi
+    else
+      log "ℹ️  No valid TMDB ID available (ID: ${tmdb_id:-'empty'})"
+    fi
+    
+    # Step 2: Fallback to original title from Radarr for native language movies
     title=$(jq -r '.originalTitle // .title' <<<"$movie_json")
-    [[ -n $title && $title != null ]] && { echo "$title"; return; }
-  fi
-  
-  # Step 2: Look for alternative title in target language
-  title=$(jq -r ".alternativeTitles[]? | select(.language==\"$target_lang\") | .title" <<<"$movie_json" | head -n1)
-  [[ -n $title && $title != null ]] && { echo "$title"; return; }
-  
-  # Step 3: Look for alternative title in fallback language (if different from target)
-  if [[ $target_lang != "$fallback_lang" ]]; then
+    if [[ -n $title && $title != "null" ]]; then
+      log "✅ Using original title (native language)"
+      echo "$title"
+      return
+    fi
+  else
+    # For non-native language movies, use fallback language logic
+    log "🌍 Movie is NOT in native language - using fallback language preference"
+    
+    # Step 1: Look for alternative title in fallback language
     title=$(jq -r ".alternativeTitles[]? | select(.language==\"$fallback_lang\") | .title" <<<"$movie_json" | head -n1)
-    [[ -n $title && $title != null ]] && { echo "$title"; return; }
+    if [[ -n $title && $title != "null" ]]; then
+      log "✅ Using alternative title in $fallback_lang: $title"
+      echo "$title"
+      return
+    fi
+    
+    # Step 2: Use default title from Radarr
+    title=$(jq -r '.title' <<<"$movie_json")
+    if [[ -n $title && $title != "null" ]]; then
+      log "✅ Using default Radarr title: $title"
+      echo "$title"
+      return
+    fi
   fi
   
-  # Step 4: Use default title from Radarr
-  title=$(jq -r '.title' <<<"$movie_json")
-  [[ -n $title && $title != null ]] && { echo "$title"; return; }
-  
-  # Step 5: Final fallback to parameter
+  # Final fallback to parameter
+  log "⚠️  Using fallback title from parameters: $radarr_movie_title"
   echo "$radarr_movie_title"
 }
 
+log "🏗️  Building folder name..."
 TITLE_RAW=$(get_preferred_title "$MOVIE_JSON" "$NATIVE_LANGUAGE" "$FALLBACK_LANGUAGE")
+log "🎬 Selected title: $TITLE_RAW"
 
 # 4.2 Quality
 QUALITY_NAME=${radarr_moviefile_quality:-$(jq -r '.movieFile.quality.quality.name // empty' <<<"$MOVIE_JSON")}
@@ -266,6 +337,8 @@ SIMPLE=$(quality_tag "$QUALITY_NAME" "$RESOLUTION")
 
 # Debug quality processing
 log "🔍 Quality Debug:"
+log "   QUALITY_NAME: ${QUALITY_NAME:-'(empty)'}"
+log "   RESOLUTION: ${RESOLUTION:-'(empty)'}"
 log "   SIMPLE (quality_tag result): ${SIMPLE:-'(empty)'}"
 
 ROOT=$(jq -r '.rootFolderPath' <<<"$MOVIE_JSON"); [[ $ROOT != *[\\/] ]] && ROOT+="\\"
