@@ -71,6 +71,7 @@ avengers_endgame_2019_4k_hdr_atmos/
 2. Edit `config.env` with your Radarr URL and API key
 3. Test with a few movies: `.\run.ps1 -MaxMovies 5`
 4. Process everything: `.\run.ps1`
+5. Resume after interruption: `.\run.ps1 -Skip 100` (continues from movie #101)
 
 ## Configuration
 
@@ -133,6 +134,12 @@ With these settings you get different results:
 
 # Test with 10 movies first (recommended)
 .\run.ps1 -MaxMovies 10
+
+# Resume after interruption (skip first 100 movies)
+.\run.ps1 -Skip 100
+
+# Skip first 50, then process next 25 movies
+.\run.ps1 -Skip 50 -MaxMovies 25
 ```
 
 ### Auto-Rename (Radarr Custom Script)
@@ -184,7 +191,8 @@ This way new movies get organized automatically while you can bulk-process exist
 
 - **Extensive logging**: Every operation is logged with timestamps
 - **Error handling**: Won't break if a movie fails
-- **Dry run capable**: Test with small batches first
+- **Dry run capable**: Test with small batches first (`-MaxMovies`)
+- **Resume capability**: Continue from any point after interruption (`-Skip`)
 - **Rollback friendly**: Radarr database backup lets you undo everything
 
 ## Troubleshooting
