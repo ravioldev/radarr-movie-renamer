@@ -81,10 +81,10 @@ if defined radarr_movie_id (
     echo [%date% %time%] Mode: Command line arguments >> "%LOG_FILE%"
     echo [%date% %time%] Arguments: %* >> "%LOG_FILE%"
     
-    set "ARG1=%~1"
-    set "ARG2=%~2"
-    set "ARG3=%~3"
-    set "ARG4=%~4"
+    REM Pass all arguments as-is to bash script
+    echo [%date% %time%] Executing with arguments: %* >> "%LOG_FILE%"
+    "%GIT_BASH_PATH%" "%RENAME_SH_PATH%" %* >> "%LOG_FILE%" 2>&1
+    goto :execute_done
 )
 
 echo [%date% %time%] Executing with arguments: >> "%LOG_FILE%"
@@ -94,6 +94,8 @@ echo [%date% %time%]   %ARG3% >> "%LOG_FILE%"
 echo [%date% %time%]   %ARG4% >> "%LOG_FILE%"
 
 "%GIT_BASH_PATH%" "%RENAME_SH_PATH%" "%ARG1%" "%ARG2%" "%ARG3%" "%ARG4%" >> "%LOG_FILE%" 2>&1
+
+:execute_done
 set SCRIPT_EXIT_CODE=%ERRORLEVEL%
 
 echo [%date% %time%] Finished rename-radarr-folders, errorlevel=%SCRIPT_EXIT_CODE% >> "%LOG_FILE%"

@@ -125,14 +125,14 @@ try {
         
         Write-Host "[$i/$($movies.Count)] Processing: $($m.title) ($($m.year)) [$qual]" -ForegroundColor White
         
-        # Prepare arguments for the batch script
+        # Prepare arguments for the batch script in var=val format
         # Use proper quoting to handle special characters like single quotes
         $movieTitle = $m.title -replace "'", "\''"  # Escape single quotes for batch
         $arguments = @(
-            $m.id,
-            "`"$movieTitle`"",
-            $m.year,
-            "`"$qual`""
+            "radarr_movie_id=$($m.id)",
+            "radarr_movie_title=`"$movieTitle`"",
+            "radarr_movie_year=$($m.year)",
+            "radarr_moviefile_quality=`"$qual`""
         )
         
         try {
