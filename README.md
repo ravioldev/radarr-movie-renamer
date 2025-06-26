@@ -267,7 +267,6 @@ Feel free to fork and adapt for your setup. The bash script (`rename-radarr-fold
 - Rename individual video files (`.mkv`, `.mp4`, etc.)
 - Rename subtitle files (`.srt`, `.ass`, etc.) 
 - Rename or delete extra files (`RARBG.txt`, `sample.mkv`, etc.)
-- Move files between different drives
 - Modify video file content or metadata
 - Change Radarr settings or configuration
 - Delete anything from your system
