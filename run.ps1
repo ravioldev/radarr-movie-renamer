@@ -208,3 +208,5 @@ catch {
     
     exit 1
 } 
+
+# Updated: Fixed argument parsing compatibility issue (v1.1)

@@ -105,3 +105,5 @@ if %SCRIPT_EXIT_CODE% neq 0 (
 )
 
 exit /b %SCRIPT_EXIT_CODE%
+
+REM Updated: Fixed argument parsing compatibility (v1.1)
