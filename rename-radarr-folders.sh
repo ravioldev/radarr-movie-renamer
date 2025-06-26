@@ -184,12 +184,12 @@ sanitize(){             # Clean for Windows (maintains UTF-8)
   # Remove hearts and other decorative symbols
   s=$(perl -CS -Mutf8 -pe 's/[♥\x{2764}]//g; s/ć/c/g; s/Ć/C/g' <<<"$s")
   
-  # Handle superscripts and subscripts - convert to regular numbers
-  # Superscripts: ⁰¹²³⁴⁵⁶⁷⁸⁹
-  s=$(perl -CS -Mutf8 -pe 's/⁰/0/g; s/¹/1/g; s/²/2/g; s/³/3/g; s/⁴/4/g; s/⁵/5/g; s/⁶/6/g; s/⁷/7/g; s/⁸/8/g; s/⁹/9/g' <<<"$s")
+  # Handle superscripts and subscripts - convert to regular numbers with space
+  # Superscripts: ⁰¹²³⁴⁵⁶⁷⁸⁹ → " 0123456789"
+  s=$(perl -CS -Mutf8 -pe 's/⁰/ 0/g; s/¹/ 1/g; s/²/ 2/g; s/³/ 3/g; s/⁴/ 4/g; s/⁵/ 5/g; s/⁶/ 6/g; s/⁷/ 7/g; s/⁸/ 8/g; s/⁹/ 9/g' <<<"$s")
   
-  # Subscripts: ₀₁₂₃₄₅₆₇₈₉ 
-  s=$(perl -CS -Mutf8 -pe 's/₀/0/g; s/₁/1/g; s/₂/2/g; s/₃/3/g; s/₄/4/g; s/₅/5/g; s/₆/6/g; s/₇/7/g; s/₈/8/g; s/₉/9/g' <<<"$s")
+  # Subscripts: ₀₁₂₃₄₅₆₇₈₉ → " 0123456789"
+  s=$(perl -CS -Mutf8 -pe 's/₀/ 0/g; s/₁/ 1/g; s/₂/ 2/g; s/₃/ 3/g; s/₄/ 4/g; s/₅/ 5/g; s/₆/ 6/g; s/₇/ 7/g; s/₈/ 8/g; s/₉/ 9/g' <<<"$s")
   
   # Handle various quote types - normalize to single quote
   s=${s//[$'\u2018\u2019\u201A\u201B\u0060\u00B4']/\'}
