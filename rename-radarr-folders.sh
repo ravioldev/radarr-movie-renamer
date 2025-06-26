@@ -184,12 +184,24 @@ sanitize(){             # Clean for Windows (maintains UTF-8)
   # Remove hearts and other decorative symbols
   s=$(perl -CS -Mutf8 -pe 's/[♥\x{2764}]//g; s/ć/c/g; s/Ć/C/g' <<<"$s")
   
-  # Handle superscripts and subscripts - convert to regular numbers with space
-  # Superscripts: ⁰¹²³⁴⁵⁶⁷⁸⁹ → " 0123456789"
-  s=$(perl -CS -Mutf8 -pe 's/⁰/ 0/g; s/¹/ 1/g; s/²/ 2/g; s/³/ 3/g; s/⁴/ 4/g; s/⁵/ 5/g; s/⁶/ 6/g; s/⁷/ 7/g; s/⁸/ 8/g; s/⁹/ 9/g' <<<"$s")
+  # Handle superscripts and subscripts - intelligent conversion based on context
   
-  # Subscripts: ₀₁₂₃₄₅₆₇₈₉ → " 0123456789"
-  s=$(perl -CS -Mutf8 -pe 's/₀/ 0/g; s/₁/ 1/g; s/₂/ 2/g; s/₃/ 3/g; s/₄/ 4/g; s/₅/ 5/g; s/₆/ 6/g; s/₇/ 7/g; s/₈/ 8/g; s/₉/ 9/g' <<<"$s")
+  # Step 1: Chemical formulas (H₂O, CO₂, etc.) - no space: H₂O → H2O
+  # Handle common chemical patterns first
+  s=$(perl -CS -Mutf8 -pe 's/H₂O/H2O/g; s/CO₂/CO2/g; s/CH₄/CH4/g; s/NH₃/NH3/g; s/SO₂/SO2/g; s/NO₂/NO2/g' <<<"$s")
+  
+  # General pattern for chemical elements: single capital letter + subscript
+  s=$(perl -CS -Mutf8 -pe 's/([A-Z])₀/\10/g; s/([A-Z])₁/\11/g; s/([A-Z])₂/\12/g; s/([A-Z])₃/\13/g; s/([A-Z])₄/\14/g; s/([A-Z])₅/\15/g; s/([A-Z])₆/\16/g; s/([A-Z])₇/\17/g; s/([A-Z])₈/\18/g; s/([A-Z])₉/\19/g' <<<"$s")
+  
+  # Step 2: Movie sequels and titles - with space: Alien³ → Alien 3, [REC]² → [REC] 2
+  # Pattern: Word/bracket + superscript numbers (after letters or closing brackets/parentheses)
+  s=$(perl -CS -Mutf8 -pe 's/([A-Za-z\]\)])⁰/\1 0/g; s/([A-Za-z\]\)])¹/\1 1/g; s/([A-Za-z\]\)])²/\1 2/g; s/([A-Za-z\]\)])³/\1 3/g; s/([A-Za-z\]\)])⁴/\1 4/g; s/([A-Za-z\]\)])⁵/\1 5/g; s/([A-Za-z\]\)])⁶/\1 6/g; s/([A-Za-z\]\)])⁷/\1 7/g; s/([A-Za-z\]\)])⁸/\1 8/g; s/([A-Za-z\]\)])⁹/\1 9/g' <<<"$s")
+  
+  # Step 3: Remaining subscripts (fallback) - no space for any remaining chemical contexts
+  s=$(perl -CS -Mutf8 -pe 's/₀/0/g; s/₁/1/g; s/₂/2/g; s/₃/3/g; s/₄/4/g; s/₅/5/g; s/₆/6/g; s/₇/7/g; s/₈/8/g; s/₉/9/g' <<<"$s")
+  
+  # Step 4: Remaining superscripts (fallback) - with space for any remaining movie titles
+  s=$(perl -CS -Mutf8 -pe 's/⁰/ 0/g; s/¹/ 1/g; s/²/ 2/g; s/³/ 3/g; s/⁴/ 4/g; s/⁵/ 5/g; s/⁶/ 6/g; s/⁷/ 7/g; s/⁸/ 8/g; s/⁹/ 9/g' <<<"$s")
   
   # Handle various quote types - normalize to single quote
   s=${s//[$'\u2018\u2019\u201A\u201B\u0060\u00B4']/\'}
