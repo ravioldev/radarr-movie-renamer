@@ -482,6 +482,11 @@ if [[ -d "$ORIG_DIR" && "$ORIG_DIR" != "$DEST" ]]; then
   if mv -n "$ORIG_DIR" "$DEST" 2>/dev/null; then
     ORIG_DIR="$DEST"
     log "✅ Folder successfully renamed"
+    
+    # Update folder timestamp if configured
+    if [[ "$UPDATE_FOLDER_TIMESTAMP" == "true" ]]; then
+      touch "$DEST" 2>/dev/null && log "📅 Updated folder timestamp: $DEST" || log "⚠️  Could not update folder timestamp"
+    fi
   else
     log "⚠️  Could not rename folder directly, will create new destination"
   fi
@@ -506,6 +511,12 @@ else
   # Fix: Quote paths in copy_tree function call
   copy_tree "$ORIG_DIR" "$DEST"
 fi
+
+# Update folder timestamp if configured (for both rename and copy operations)
+if [[ "$UPDATE_FOLDER_TIMESTAMP" == "true" && -d "$DEST" ]]; then
+  touch "$DEST" 2>/dev/null && log "📅 Updated folder timestamp: $DEST" || log "⚠️  Could not update folder timestamp"
+fi
+
 [[ $HAS_FILE == true && ! -f "$DEST/$BASE" ]] && { log "❌ File not found in destination"; exit 95; }
 
 # ───────────── 8. PUT a Radarr ────────────────────────────────────────

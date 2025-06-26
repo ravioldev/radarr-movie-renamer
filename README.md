@@ -256,6 +256,7 @@ pwsh ./run.ps1 -MaxMovies 10
 |---------|-------------|---------|---------|
 | `USE_COLLECTIONS` | Include collection names in folders | `true` | `true`, `false` |
 | `INCLUDE_QUALITY_TAG` | Include quality tags in folders | `true` | `true`, `false` |
+| `UPDATE_FOLDER_TIMESTAMP` | Update folder modification time after rename | `false` | `true`, `false` |
 
 ### File System
 
@@ -288,6 +289,24 @@ GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe
 ```
 
 **No quotes or escaping needed** - the scripts handle spaces automatically.
+
+### Folder Timestamp Management
+Control whether folder modification dates are updated when renamed:
+
+| Setting | Behavior | Use Case |
+|---------|----------|----------|
+| `UPDATE_FOLDER_TIMESTAMP=false` | **Preserves original dates** | Keep historical folder timestamps |
+| `UPDATE_FOLDER_TIMESTAMP=true` | **Updates to current date/time** | Track when script last organized folders |
+
+**Example scenarios:**
+- **`false` (default)**: Movie folder from 2019 keeps its 2019 date after renaming
+- **`true`**: Movie folder shows today's date, indicating recent organization
+
+```bash
+# Configuration examples:
+UPDATE_FOLDER_TIMESTAMP=false    # Preserve original folder dates
+UPDATE_FOLDER_TIMESTAMP=true     # Update to current date when renamed
+```
 
 ### Special Characters in Movie Titles
 The scripts handle special characters in movie titles correctly:
