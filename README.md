@@ -39,7 +39,7 @@ A comprehensive set of scripts for automatically organizing and renaming movie f
 
 ## ⚠️ **IMPORTANT DISCLAIMER**
 
-**USE AT YOUR OWN RISK!** This script has been extensively tested and proven useful in the author's specific Radarr setup, but may not work identically in all library configurations. Different setups, folder structures, and Radarr configurations can produce unexpected results.
+**USE AT YOUR OWN RISK!** This script has been extensively tested and proven useful in my own personal library (9000+ movies), but may not work identically in all library configurations. Different setups, folder structures, and Radarr configurations can produce unexpected results.
 
 ### 🛡️ **CRITICAL SAFETY STEPS**
 
