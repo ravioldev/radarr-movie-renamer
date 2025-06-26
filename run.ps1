@@ -28,17 +28,15 @@ function Import-EnvFile {
             $value = $matches[2].Trim()
             
             # Expand variables in value (e.g., ${SCRIPTS_DIR})
-            # First, try to get from already loaded process environment variables
             $value = $value -replace '\$\{([^}]+)\}', { 
                 $varName = $_.Groups[1].Value
                 $expandedValue = [System.Environment]::GetEnvironmentVariable($varName, "Process")
                 if (-not $expandedValue) {
-                    # Fallback to system environment variables
                     $expandedValue = [System.Environment]::GetEnvironmentVariable($varName)
                 }
                 if (-not $expandedValue) {
                     Write-Warning "Variable ${$varName} not found during expansion"
-                    return "`${$varName}"  # Return original if not found
+                    return "`${$varName}"
                 }
                 return $expandedValue
             }
@@ -153,8 +151,7 @@ try {
         Write-Host "[$actualPosition] [$i/$totalToProcess] Processing: $($m.title) ($($m.year)) [$qual]" -ForegroundColor White
         
         # Prepare arguments for the batch script in var=val format
-        # Use proper quoting to handle special characters like single quotes
-        $movieTitle = $m.title -replace "'", "\''"  # Escape single quotes for batch
+        $movieTitle = $m.title -replace "'", "\''"
         $arguments = @(
             "radarr_movie_id=$($m.id)",
             "radarr_movie_title=`"$movieTitle`"",
@@ -163,7 +160,6 @@ try {
         )
         
         try {
-            # Use Start-Process with proper argument handling for spaces and special characters
             $process = Start-Process -FilePath $renameBatPath -ArgumentList $arguments -Wait -PassThru -NoNewWindow
             $exitCode = $process.ExitCode
             
@@ -175,13 +171,11 @@ try {
                 Write-Host "   ❌ Failed (Exit code: $exitCode)" -ForegroundColor Red
                 $errorCount++
                 
-                # Log detailed error information if log file is configured
                 if ($logFile -and (Test-Path $logFile)) {
                     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
                     Add-Content -Path $logFile -Value "[$timestamp] PowerShell: $errorMsg"
                 }
                 
-                # Show common exit codes meaning
                 switch ($exitCode) {
                     1 { Write-Host "      → Git Bash not found" -ForegroundColor Red }
                     2 { Write-Host "      → Script file not found" -ForegroundColor Red }
@@ -202,7 +196,6 @@ try {
             $errorCount++
         }
         
-        # Add a small delay between movies to avoid overwhelming the system
         Start-Sleep -Milliseconds 100
     }
     
@@ -212,7 +205,6 @@ try {
         Write-Host "   ❌ Errors: $errorCount movies" -ForegroundColor Red
     }
     
-    # Log completion if log file is configured
     if ($logFile) {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         $completionMsg = if ($Skip -gt 0) {
@@ -223,7 +215,6 @@ try {
         Add-Content -Path $logFile -Value "[$timestamp] PowerShell: $completionMsg"
     }
     
-    # Exit with error code if there were failures
     if ($errorCount -gt 0) {
         exit 1
     }
@@ -232,13 +223,12 @@ catch {
     $errorMsg = "Failed to connect to Radarr or process movies: $($_.Exception.Message)"
     Write-Error $errorMsg
     
-    # Log error if log file is configured
     if ($logFile) {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         Add-Content -Path $logFile -Value "[$timestamp] PowerShell ERROR: $errorMsg"
     }
     
     exit 1
-} 
+}
 
-# Updated: Fixed argument parsing compatibility issue (v1.1)
+# Updated: Fixed PowerShell syntax and added Skip parameter (v1.1)
