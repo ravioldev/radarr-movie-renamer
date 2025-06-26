@@ -3,7 +3,8 @@
 
 param(
     [string]$ConfigFile = "config.env",
-    [int]$MaxMovies = 0  # 0 = process all movies, any positive number = limit to that many movies
+    [int]$MaxMovies = 0,  # 0 = process all movies, any positive number = limit to that many movies
+    [int]$Skip = 0        # Number of movies to skip from the beginning (useful for resuming interrupted processes)
 )
 
 # Function to import environment variables from .env file
@@ -97,18 +98,41 @@ if ($scriptsDir) {
 if ($MaxMovies -gt 0) {
     Write-Host "   🧪 Test mode: Processing max $MaxMovies movies" -ForegroundColor Yellow
 }
+if ($Skip -gt 0) {
+    Write-Host "   ⏭️  Skip mode: Skipping first $Skip movies" -ForegroundColor Yellow
+}
 
 try {
     # Get all movies from Radarr
     $allMovies = Invoke-RestMethod -Headers @{ 'X-Api-Key' = $apiKey } -Uri "$radarr/api/v3/movie"
     
+    # Apply Skip parameter first (skip the first X movies)
+    if ($Skip -gt 0) {
+        if ($Skip -ge $allMovies.Count) {
+            Write-Host "`n⚠️  Skip value ($Skip) is greater than or equal to total movies ($($allMovies.Count)). Nothing to process." -ForegroundColor Yellow
+            exit 0
+        }
+        $allMovies = $allMovies | Select-Object -Skip $Skip
+        Write-Host "`n📊 Skipped first $Skip movies, $($allMovies.Count) remaining" -ForegroundColor Yellow
+    }
+    
     # Apply MaxMovies limit if specified
     if ($MaxMovies -gt 0 -and $allMovies.Count -gt $MaxMovies) {
         $movies = $allMovies | Select-Object -First $MaxMovies
-        Write-Host "`n📊 Found $($allMovies.Count) movies total, processing first $($movies.Count) (MaxMovies=$MaxMovies)" -ForegroundColor Yellow
+        $statusMsg = if ($Skip -gt 0) {
+            "Found $($allMovies.Count + $Skip) movies total, skipped $Skip, processing next $($movies.Count) (MaxMovies=$MaxMovies)"
+        } else {
+            "Found $($allMovies.Count) movies total, processing first $($movies.Count) (MaxMovies=$MaxMovies)"
+        }
+        Write-Host "`n📊 $statusMsg" -ForegroundColor Yellow
     } else {
         $movies = $allMovies
-        Write-Host "`n📊 Found $($movies.Count) movies to process" -ForegroundColor Yellow
+        $statusMsg = if ($Skip -gt 0) {
+            "Found $($allMovies.Count + $Skip) movies total, skipped $Skip, processing remaining $($movies.Count)"
+        } else {
+            "Found $($movies.Count) movies to process"
+        }
+        Write-Host "`n📊 $statusMsg" -ForegroundColor Yellow
     }
     
     $successCount = 0
@@ -123,7 +147,10 @@ try {
             "Unknown" 
         }
         
-        Write-Host "[$i/$($movies.Count)] Processing: $($m.title) ($($m.year)) [$qual]" -ForegroundColor White
+        # Adjust counter display to show actual position (including skipped movies)
+        $actualPosition = $Skip + $i
+        $totalToProcess = $movies.Count
+        Write-Host "[$actualPosition] [$i/$totalToProcess] Processing: $($m.title) ($($m.year)) [$qual]" -ForegroundColor White
         
         # Prepare arguments for the batch script in var=val format
         # Use proper quoting to handle special characters like single quotes
@@ -188,7 +215,12 @@ try {
     # Log completion if log file is configured
     if ($logFile) {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Add-Content -Path $logFile -Value "[$timestamp] PowerShell: Batch process completed - $successCount success, $errorCount errors out of $($movies.Count) movies processed"
+        $completionMsg = if ($Skip -gt 0) {
+            "Batch process completed - $successCount success, $errorCount errors out of $($movies.Count) movies processed (skipped first $Skip movies)"
+        } else {
+            "Batch process completed - $successCount success, $errorCount errors out of $($movies.Count) movies processed"
+        }
+        Add-Content -Path $logFile -Value "[$timestamp] PowerShell: $completionMsg"
     }
     
     # Exit with error code if there were failures
