@@ -1,0 +1,32 @@
+#!/bin/bash
+# Radarr Movie Folders Renamer - Universal Cross-Platform Wrapper
+# Automatically detects the best execution method for your system
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Function to detect if PowerShell Core is available
+has_pwsh() {
+    command -v pwsh >/dev/null 2>&1
+}
+
+# Function to detect if bash is available
+has_bash() {
+    command -v bash >/dev/null 2>&1
+}
+
+# Detect the best execution method
+if has_pwsh && [ -f "$SCRIPT_DIR/rename-radarr-folders.ps1" ]; then
+    # Use PowerShell Core (preferred for cross-platform consistency)
+    exec pwsh "$SCRIPT_DIR/rename-radarr-folders.ps1" "$@"
+elif has_bash && [ -f "$SCRIPT_DIR/rename-radarr-folders.sh" ]; then
+    # Fallback to direct bash execution
+    exec bash "$SCRIPT_DIR/rename-radarr-folders.sh" "$@"
+else
+    echo "ERROR: Neither PowerShell Core (pwsh) nor bash with required scripts found"
+    echo "Please install PowerShell Core or ensure bash is available"
+    echo "Required files:"
+    echo "  - $SCRIPT_DIR/rename-radarr-folders.ps1 (for PowerShell Core)"
+    echo "  - $SCRIPT_DIR/rename-radarr-folders.sh (for bash)"
+    exit 1
+fi 

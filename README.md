@@ -84,6 +84,8 @@ A comprehensive set of scripts for automatically organizing and renaming movie f
 rename-script/
 ├── config.env                    # Main configuration file (template)
 ├── run.ps1                      # PowerShell launcher for bulk processing
+├── rename-radarr-folders        # Universal cross-platform wrapper (no extension)
+├── rename-radarr-folders.ps1    # PowerShell Core script (cross-platform)
 ├── rename-radarr-folders.bat    # Windows batch wrapper for individual movies
 ├── rename-radarr-folders.sh     # Main bash script with all logic
 ├── get-movie-ids.ps1            # Testing utility: List movies with IDs
@@ -96,9 +98,49 @@ rename-script/
 
 ### 1. Prerequisites
 
+#### Windows
 - **Radarr**: Running instance with API access
 - **Git Bash**: For Windows (usually installed with Git)
 - **PowerShell**: 5.1+ or PowerShell Core
+
+#### Linux / macOS
+- **Radarr**: Running instance with API access
+- **PowerShell Core**: Install from [Microsoft PowerShell releases](https://github.com/PowerShell/PowerShell/releases)
+- **Bash**: Usually pre-installed
+- **curl & jq**: Required for API calls and JSON processing
+
+#### Installation Commands:
+
+**Ubuntu/Debian:**
+```bash
+# Install PowerShell Core
+wget -q https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+sudo apt-get update
+sudo apt-get install -y powershell
+
+# Install dependencies
+sudo apt-get install -y curl jq
+```
+
+**macOS (using Homebrew):**
+```bash
+# Install PowerShell Core
+brew install --cask powershell
+
+# Install dependencies  
+brew install curl jq
+```
+
+**CentOS/RHEL:**
+```bash
+# Install PowerShell Core
+sudo yum install -y https://packages.microsoft.com/config/rhel/7/packages-microsoft-prod.rpm
+sudo yum install -y powershell
+
+# Install dependencies
+sudo yum install -y curl jq
+```
 
 ### 2. Configuration
 
@@ -133,7 +175,38 @@ INCLUDE_QUALITY_TAG=true     # Include quality tags in folder names
 
 ### 3. Usage
 
+#### Cross-Platform Execution Methods:
+
+**Option 1: Universal Wrapper (Recommended)**
+```bash
+# Make executable (Linux/macOS only)
+chmod +x rename-radarr-folders
+
+# Execute (works on all platforms)
+./rename-radarr-folders [arguments]
+```
+
+**Option 2: PowerShell Core (All Platforms)**
+```bash
+# Windows
+.\rename-radarr-folders.ps1 [arguments]
+
+# Linux/macOS  
+pwsh ./rename-radarr-folders.ps1 [arguments]
+```
+
+**Option 3: Platform-Specific**
+```bash
+# Windows - Batch file
+.\rename-radarr-folders.bat [arguments]
+
+# Linux/macOS - Direct bash
+bash ./rename-radarr-folders.sh [arguments]
+```
+
 #### Bulk Processing (All Movies):
+
+**Windows:**
 ```powershell
 # Process all movies in your Radarr library
 .\run.ps1
@@ -143,6 +216,18 @@ INCLUDE_QUALITY_TAG=true     # Include quality tags in folder names
 
 # Test mode: Process only first 10 movies
 .\run.ps1 -MaxMovies 10
+```
+
+**Linux/macOS:**
+```bash
+# Process all movies in your Radarr library
+pwsh ./run.ps1
+
+# Test mode: Process only first 5 movies (recommended for testing)
+pwsh ./run.ps1 -MaxMovies 5
+
+# Test mode: Process only first 10 movies
+pwsh ./run.ps1 -MaxMovies 10
 ```
 
 **🧪 Testing Recommendation**: Always use `-MaxMovies` parameter first to test with a small subset before processing your entire library.
