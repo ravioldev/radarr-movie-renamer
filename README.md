@@ -152,11 +152,31 @@ Both methods use the same logic, just different triggers.
 
 ## How It Works
 
+**Important**: This script only renames **folders**, not individual **files**.
+
 1. Reads your movie data from Radarr API
 2. Checks if movie is in your native language
 3. Gets the right title (original for native language, English for others)
 4. Builds folder name: `Collection (Year) - Title [Quality]`
-5. Renames the folder and updates Radarr database
+5. **Renames only the folder** containing the movie
+6. Moves all files (unchanged) to the new folder
+7. Updates Radarr database with new folder path
+8. Triggers Radarr to refresh and apply **its own file naming rules**
+
+**Example workflow**:
+```
+Before: Iron.Man.2008.1080p.BluRay.x264-GROUP/
+        ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv
+        └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt
+
+After:  Marvel Cinematic Universe (2008) - Iron Man [1080p]/
+        ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv  # Still original name
+        └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt  # Still original name
+
+Radarr:  Marvel Cinematic Universe (2008) - Iron Man [1080p]/
+         ├── Iron Man (2008) [Bluray-1080p].mkv        # Renamed by Radarr
+         └── Iron Man (2008) [Bluray-1080p].en.srt     # Renamed by Radarr
+```
 
 ## Language Examples
 
@@ -237,13 +257,28 @@ Feel free to fork and adapt for your setup. The bash script (`rename-radarr-fold
 
 ## What Gets Changed
 
-The script only renames folders and updates Radarr's database. It doesn't:
-- Move files between drives
-- Modify video files
-- Change Radarr settings
-- Delete anything
+### ✅ **What This Script Does**:
+- **Renames movie folders** with intelligent naming patterns
+- **Moves all files** (unchanged) to the new folder
+- **Updates Radarr's database** to point to new folder location
+- **Triggers Radarr refresh** so it can apply its own file naming rules
 
-Your movie files stay exactly the same, just better organized.
+### ❌ **What This Script Does NOT Do**:
+- Rename individual video files (`.mkv`, `.mp4`, etc.)
+- Rename subtitle files (`.srt`, `.ass`, etc.) 
+- Rename or delete extra files (`RARBG.txt`, `sample.mkv`, etc.)
+- Move files between different drives
+- Modify video file content or metadata
+- Change Radarr settings or configuration
+- Delete anything from your system
+
+### 🔄 **The Complete Process**:
+1. **This script**: `Random.Movie.2023.x264-GROUP/` → `Action Collection (2023) - Movie Title [1080p]/`
+2. **Files moved unchanged**: All `.mkv`, `.srt`, `.nfo` files keep original names
+3. **Radarr triggered**: Receives refresh command and detects files in new location
+4. **Radarr renames files**: Applies your file naming rules automatically
+
+**Result**: Perfect folder organization + Radarr's file naming = Complete library organization
 
 ## Credits
 
