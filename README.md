@@ -22,9 +22,11 @@ Perfect if you're bilingual or prefer original titles for foreign films.
 - **Radarr**: Quality formatting is inconsistent and ugly
 - **This script**: Clean `[1080p]`, `[2160p]`, `[720p]` tags that work with every quality profile
 
-### **Bulk Processing**
+### **Dual Usage: Auto-Rename + Bulk Processing**
 - **Radarr**: Rename movies one by one through the UI (painful for large libraries)
-- **This script**: Process your entire 2000+ movie library in one command
+- **This script**: Two ways to use it:
+  - **Auto-rename**: Add as Radarr custom script - renames new downloads automatically
+  - **Bulk processing**: Process your entire library in one command (tested with 9000+ movies)
 
 ### **TMDB Integration**
 - **Radarr**: Limited metadata sources
@@ -76,20 +78,22 @@ GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe
 
 ## Usage
 
-### Process All Movies
+### Bulk Processing (Process Entire Library)
 ```powershell
+# Process all movies in your library
 .\run.ps1
-```
 
-### Test with 10 Movies First
-```powershell
+# Test with 10 movies first (recommended)
 .\run.ps1 -MaxMovies 10
 ```
 
-### Single Movie (for Radarr custom scripts)
+### Auto-Rename (Radarr Custom Script)
 ```batch
+# Radarr calls this automatically on import/upgrade
 rename-radarr-folders.bat movieID "Movie Title" year "Quality"
 ```
+
+Both methods use the same logic, just different triggers.
 
 ## How It Works
 
@@ -117,13 +121,16 @@ With `NATIVE_LANGUAGE=es`:
 └── logs/                      # Detailed logs
 ```
 
-## Radarr Integration
+## Radarr Integration (Auto-Rename)
 
 Add this as a custom script in Radarr Settings > Connect:
 
 - **On Import**: Automatically rename new downloads
-- **On Upgrade**: Rename when quality improves
+- **On Upgrade**: Rename when quality improves  
+- **On Rename**: Triggered when you rename through Radarr UI
 - **Path**: Point to `rename-radarr-folders.bat`
+
+This way new movies get organized automatically while you can bulk-process existing ones with `run.ps1`.
 
 ## Safety Features
 
@@ -172,6 +179,6 @@ Your movie files stay exactly the same, just better organized.
 
 ## Credits
 
-Built by someone tired of manually organizing 2000+ movies. Tested on a mix of 4K remuxes, 1080p rips, and random quality downloads across multiple languages.
+Built by someone tired of manually organizing movies. Extensively tested and proven on a library of 9000+ movies - a mix of 4K remuxes, 1080p rips, and random quality downloads across multiple languages.
 
 Made this public because folder organization shouldn't be this hard.
