@@ -1,6 +1,16 @@
-# Radarr Movie Folders Renamer
+# Radarr Movie Folders Renamer v1.1
 
 Scripts to automatically organize your Radarr movie library with proper folder naming that actually makes sense.
+
+## 🆕 What's New in v1.1
+
+- **🎯 Selective Processing**: Target specific movies instead of processing your entire library
+- **🔍 Smart Filters**: Find movies with `[Unknown]` folders, missing quality, or recent additions
+- **🧪 Preview Mode**: See exactly what would be changed before making any modifications (`-DryRun`)
+- **⚡ Flexible Path Filtering**: Search for any text in folder paths - not just "[Unknown]"
+- **📅 Date-Based Processing**: Process only movies added in the last N days
+
+Perfect for fixing specific issues or maintaining your library incrementally!
 
 ## Why Use This Instead of Radarr's Built-in Renaming?
 
@@ -69,9 +79,23 @@ avengers_endgame_2019_4k_hdr_atmos/
 
 1. **Back up your Radarr database** (seriously, do this first)
 2. Edit `config.env` with your Radarr URL and API key
-3. Test with a few movies: `.\run.ps1 -MaxMovies 5`
-4. Process everything: `.\run.ps1`
-5. Resume after interruption: `.\run.ps1 -Skip 100` (continues from movie #101)
+3. **Preview what would be changed**: `.\run.ps1 -MaxMovies 5 -DryRun`
+4. **Test with a few movies**: `.\run.ps1 -MaxMovies 5`
+5. **Fix specific issues**: `.\run.ps1 -FilterPath "[Unknown]"` or `.\run.ps1 -FilterNoQuality`
+6. **Process everything**: `.\run.ps1`
+7. **Resume after interruption**: `.\run.ps1 -Skip 100` (continues from movie #101)
+
+### Quick Fixes (New in v1.1)
+```powershell
+# See movies that need fixing without making changes
+.\run.ps1 -FilterPath "[Unknown]" -DryRun
+.\run.ps1 -FilterNoQuality -DryRun
+
+# Fix most common issues
+.\run.ps1 -FilterPath "[Unknown]"        # Fix folders with [Unknown] 
+.\run.ps1 -FilterNoQuality               # Fix movies without quality
+.\run.ps1 -DaysBack 7                    # Fix recent additions only
+```
 
 ## Configuration
 
@@ -142,6 +166,66 @@ With these settings you get different results:
 .\run.ps1 -Skip 50 -MaxMovies 25
 ```
 
+### Selective Processing (New in v1.1)
+Target specific movies instead of processing everything:
+
+```powershell
+# See what movies would be processed (no changes made)
+.\run.ps1 -FilterPath "[Unknown]" -DryRun
+
+# Process only movies with "[Unknown]" in folder path
+.\run.ps1 -FilterPath "[Unknown]"
+
+# Process movies without quality defined (no files or Unknown quality)
+.\run.ps1 -FilterNoQuality
+
+# Process movies added in the last 7 days
+.\run.ps1 -DaysBack 7
+
+# Process movies with specific text in title
+.\run.ps1 -SearchTitle "Marvel"
+
+# Combine filters for precise targeting
+.\run.ps1 -FilterPath "temp" -FilterNoQuality -DaysBack 30
+
+# Process movies in download folders
+.\run.ps1 -FilterPath "downloads" -MaxMovies 20 -DryRun
+```
+
+#### Filter Examples
+```powershell
+# Fix movies in temporary folders
+.\run.ps1 -FilterPath "temp"
+.\run.ps1 -FilterPath "tmp" 
+.\run.ps1 -FilterPath "downloads"
+
+# Fix movies with broken quality detection
+.\run.ps1 -FilterPath "[Unknown]"
+.\run.ps1 -FilterPath "Unknown"
+.\run.ps1 -FilterNoQuality
+
+# Process recent additions only
+.\run.ps1 -DaysBack 3                    # Last 3 days
+.\run.ps1 -DaysBack 7 -MaxMovies 50      # Last week, limit 50
+
+# Target specific collections or patterns
+.\run.ps1 -SearchTitle "Marvel" -DryRun
+.\run.ps1 -FilterPath "2024"             # Movies with "2024" in path
+.\run.ps1 -FilterPath "4K"               # 4K movies needing organization
+```
+
+### Available Filters
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `-FilterPath "text"` | Movies with specific text in folder path | `.\run.ps1 -FilterPath "[Unknown]"` |
+| `-FilterNoQuality` | Movies without quality defined | `.\run.ps1 -FilterNoQuality` |
+| `-DaysBack N` | Movies added/modified in last N days | `.\run.ps1 -DaysBack 7` |
+| `-SearchTitle "text"` | Movies with text in title | `.\run.ps1 -SearchTitle "Marvel"` |
+| `-DryRun` | Preview what would be processed | `.\run.ps1 -DryRun` |
+| `-MaxMovies N` | Limit processing to N movies | `.\run.ps1 -MaxMovies 10` |
+| `-Skip N` | Skip first N movies | `.\run.ps1 -Skip 100` |
+
 ### Auto-Rename (Radarr Custom Script)
 ```batch
 # Radarr calls this automatically on import/upgrade
@@ -209,9 +293,11 @@ This way new movies get organized automatically while you can bulk-process exist
 
 ## Safety Features
 
+- **Preview mode**: See what would be changed without making any modifications (`-DryRun`)
+- **Selective processing**: Target specific movies instead of processing everything
 - **Extensive logging**: Every operation is logged with timestamps
-- **Error handling**: Won't break if a movie fails
-- **Dry run capable**: Test with small batches first (`-MaxMovies`)
+- **Error handling**: Won't break if a movie fails - continues with remaining movies  
+- **Batch testing**: Test with small batches first (`-MaxMovies`)
 - **Resume capability**: Continue from any point after interruption (`-Skip`)
 - **Rollback friendly**: Radarr database backup lets you undo everything
 
@@ -282,6 +368,68 @@ Feel free to fork and adapt for your setup. The bash script (`rename-radarr-fold
 4. **Radarr renames files**: Applies your file naming rules automatically
 
 **Result**: Perfect folder organization + Radarr's file naming = Complete library organization
+
+## Common Use Cases (v1.1)
+
+### 🚀 **Getting Started**
+```powershell
+# First time setup - see what would change
+.\run.ps1 -MaxMovies 10 -DryRun
+
+# Test with a small batch
+.\run.ps1 -MaxMovies 5
+```
+
+### 🔧 **Fix Specific Problems**
+```powershell
+# Fix movies Radarr couldn't identify properly
+.\run.ps1 -FilterPath "[Unknown]"
+
+# Fix movies without quality tags
+.\run.ps1 -FilterNoQuality
+
+# Fix movies in download/temp folders
+.\run.ps1 -FilterPath "downloads"
+.\run.ps1 -FilterPath "temp"
+```
+
+### 📅 **Maintenance Tasks**
+```powershell
+# Weekly cleanup - new additions only
+.\run.ps1 -DaysBack 7
+
+# Monthly check - recent movies without quality
+.\run.ps1 -DaysBack 30 -FilterNoQuality
+
+# Fix specific collection issues
+.\run.ps1 -SearchTitle "Marvel" -DryRun
+```
+
+### 🎯 **Targeted Processing**
+```powershell
+# Work on specific quality tiers
+.\run.ps1 -FilterPath "720p" -MaxMovies 50
+.\run.ps1 -FilterPath "4K"
+
+# Fix movies from specific years
+.\run.ps1 -FilterPath "2023"
+.\run.ps1 -FilterPath "2024"
+
+# Process specific collections gradually
+.\run.ps1 -SearchTitle "Harry Potter" -DryRun
+.\run.ps1 -SearchTitle "Star Wars" -MaxMovies 20
+```
+
+### 🔄 **Bulk Operations**
+```powershell
+# Full library organization (use after testing!)
+.\run.ps1
+
+# Large library - process in chunks
+.\run.ps1 -MaxMovies 100
+.\run.ps1 -Skip 100 -MaxMovies 100    # Next 100
+.\run.ps1 -Skip 200 -MaxMovies 100    # Next 100, etc.
+```
 
 ## Credits
 

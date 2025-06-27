@@ -3,8 +3,13 @@
 
 param(
     [string]$ConfigFile = "config.env",
-    [int]$MaxMovies = 0,  # 0 = process all movies, any positive number = limit to that many movies
-    [int]$Skip = 0        # Number of movies to skip from the beginning (useful for resuming interrupted processes)
+    [int]$MaxMovies = 0,        # 0 = process all movies, any positive number = limit to that many movies
+    [int]$Skip = 0,             # Number of movies to skip from the beginning (useful for resuming interrupted processes)
+    [string]$FilterPath = "",   # Filter movies with this text in path (e.g., "[Unknown]", "temp", etc.)
+    [switch]$FilterNoQuality,   # Filter movies without quality defined
+    [int]$DaysBack = 0,         # Filter movies added/modified in last N days (0 = disabled)
+    [switch]$DryRun,            # Show what would be processed without executing
+    [string]$SearchTitle = ""   # Filter by title containing this text
 )
 
 # Function to import environment variables from .env file
@@ -64,7 +69,7 @@ if (!$radarr -or !$apiKey) {
     exit 1
 }
 
-if (!$renameBatPath -or !(Test-Path $renameBatPath)) {
+if (!$renameBatPath -or !(Test-Path $renameBatPath)) {s
     Write-Error "Batch script not found: $renameBatPath"
     Write-Host "ℹ️  Check RENAME_BAT_PATH in config.env" -ForegroundColor Yellow
     exit 2
@@ -93,44 +98,159 @@ if ($logFile) {
 if ($scriptsDir) {
     Write-Host "   Scripts directory: $scriptsDir" -ForegroundColor Gray
 }
+# Show applied filters
+$filtersApplied = @()
+if ($FilterPath) { $filtersApplied += "Path contains: '$FilterPath'" }
+if ($FilterNoQuality) { $filtersApplied += "Movies without quality defined" }
+if ($DaysBack -gt 0) { $filtersApplied += "Movies from last $DaysBack days" }
+if ($SearchTitle) { $filtersApplied += "Title contains: '$SearchTitle'" }
+
+if ($filtersApplied.Count -gt 0) {
+    Write-Host "   🔍 Applied Filters:" -ForegroundColor Yellow
+    $filtersApplied | ForEach-Object { Write-Host "      • $_" -ForegroundColor Gray }
+}
+
 if ($MaxMovies -gt 0) {
     Write-Host "   🧪 Test mode: Processing max $MaxMovies movies" -ForegroundColor Yellow
 }
 if ($Skip -gt 0) {
     Write-Host "   ⏭️  Skip mode: Skipping first $Skip movies" -ForegroundColor Yellow
 }
+if ($DryRun) {
+    Write-Host "   🧪 DRY RUN MODE - No changes will be made" -ForegroundColor Yellow
+}
 
 try {
     # Get all movies from Radarr
     $allMovies = Invoke-RestMethod -Headers @{ 'X-Api-Key' = $apiKey } -Uri "$radarr/api/v3/movie"
+    Write-Host "`n📊 Retrieved $($allMovies.Count) total movies from Radarr" -ForegroundColor Green
     
-    # Apply Skip parameter first (skip the first X movies)
+    # Apply filters first
+    $filteredMovies = $allMovies
+    
+    # Filter by search title if provided
+    if ($SearchTitle) {
+        $filteredMovies = $filteredMovies | Where-Object { $_.title -like "*$SearchTitle*" }
+        Write-Host "🔍 After title filter: $($filteredMovies.Count) movies" -ForegroundColor Cyan
+    }
+    
+    # Filter movies with specified text in path
+    if ($FilterPath) {
+        $filteredMovies = $filteredMovies | Where-Object { 
+            $_.path -like "*$FilterPath*"
+        }
+        Write-Host "🔍 After path filter ('$FilterPath'): $($filteredMovies.Count) movies" -ForegroundColor Cyan
+    }
+    
+    # Filter movies without quality defined
+    if ($FilterNoQuality) {
+        $filteredMovies = $filteredMovies | Where-Object { 
+            !$_.hasFile -or 
+            !$_.movieFile -or 
+            !$_.movieFile.quality -or 
+            !$_.movieFile.quality.quality -or
+            $_.movieFile.quality.quality.name -eq "Unknown" -or
+            [string]::IsNullOrEmpty($_.movieFile.quality.quality.name)
+        }
+        Write-Host "🔍 After 'no quality' filter: $($filteredMovies.Count) movies" -ForegroundColor Cyan
+    }
+    
+    # Filter movies added/modified recently
+    if ($DaysBack -gt 0) {
+        $cutoffDate = (Get-Date).AddDays(-$DaysBack)
+        $filteredMovies = $filteredMovies | Where-Object { 
+            $dateAdded = $null
+            $lastInfoSync = $null
+            
+            # Try to parse dateAdded
+            if ($_.dateAdded -and [DateTime]::TryParse($_.dateAdded, [ref]$dateAdded)) {
+                if ($dateAdded -gt $cutoffDate) { return $true }
+            }
+            
+            # Try to parse lastInfoSync as fallback
+            if ($_.lastInfoSync -and [DateTime]::TryParse($_.lastInfoSync, [ref]$lastInfoSync)) {
+                if ($lastInfoSync -gt $cutoffDate) { return $true }
+            }
+            
+            return $false
+        }
+        Write-Host "🔍 After 'recent ($DaysBack days)' filter: $($filteredMovies.Count) movies" -ForegroundColor Cyan
+    }
+    
+    # Check if we have movies left after filtering
+    if ($filteredMovies.Count -eq 0) {
+        Write-Host "`n⚠️  No movies match the specified criteria" -ForegroundColor Yellow
+        exit 0
+    }
+    
+    # Apply Skip parameter after filtering
     if ($Skip -gt 0) {
-        if ($Skip -ge $allMovies.Count) {
-            Write-Host "`n⚠️  Skip value ($Skip) is greater than or equal to total movies ($($allMovies.Count)). Nothing to process." -ForegroundColor Yellow
+        if ($Skip -ge $filteredMovies.Count) {
+            Write-Host "`n⚠️  Skip value ($Skip) is greater than or equal to filtered movies ($($filteredMovies.Count)). Nothing to process." -ForegroundColor Yellow
             exit 0
         }
-        $allMovies = $allMovies | Select-Object -Skip $Skip
-        Write-Host "`n📊 Skipped first $Skip movies, $($allMovies.Count) remaining" -ForegroundColor Yellow
+        $filteredMovies = $filteredMovies | Select-Object -Skip $Skip
+        Write-Host "📊 Skipped first $Skip movies, $($filteredMovies.Count) remaining" -ForegroundColor Yellow
     }
     
     # Apply MaxMovies limit if specified
-    if ($MaxMovies -gt 0 -and $allMovies.Count -gt $MaxMovies) {
-        $movies = $allMovies | Select-Object -First $MaxMovies
-        $statusMsg = if ($Skip -gt 0) {
-            "Found $($allMovies.Count + $Skip) movies total, skipped $Skip, processing next $($movies.Count) (MaxMovies=$MaxMovies)"
-        } else {
-            "Found $($allMovies.Count) movies total, processing first $($movies.Count) (MaxMovies=$MaxMovies)"
-        }
-        Write-Host "`n📊 $statusMsg" -ForegroundColor Yellow
+    if ($MaxMovies -gt 0 -and $filteredMovies.Count -gt $MaxMovies) {
+        $movies = $filteredMovies | Select-Object -First $MaxMovies
+        Write-Host "📊 Limited to first $MaxMovies movies from filtered results" -ForegroundColor Yellow
     } else {
-        $movies = $allMovies
-        $statusMsg = if ($Skip -gt 0) {
-            "Found $($allMovies.Count + $Skip) movies total, skipped $Skip, processing remaining $($movies.Count)"
-        } else {
-            "Found $($movies.Count) movies to process"
+        $movies = $filteredMovies
+    }
+    
+    # Final status message
+    $statusMsg = "Processing $($movies.Count) movies"
+    if ($filtersApplied.Count -gt 0) {
+        $statusMsg += " (after applying filters)"
+    }
+    if ($Skip -gt 0) {
+        $statusMsg += " (skipped first $Skip)"
+    }
+    if ($MaxMovies -gt 0 -and $movies.Count -eq $MaxMovies) {
+        $statusMsg += " (limited to $MaxMovies)"
+    }
+    Write-Host "`n📊 $statusMsg" -ForegroundColor Yellow
+    
+    # Show what will be processed if DryRun is enabled
+    if ($DryRun) {
+        Write-Host "`n📋 DRY RUN - Movies that would be processed:" -ForegroundColor Yellow
+        Write-Host "=" * 80 -ForegroundColor Gray
+        
+        $counter = 0
+        foreach ($m in $movies) {
+            $counter++
+            $qual = if ($m.movieFile -and $m.movieFile.quality -and $m.movieFile.quality.quality) { 
+                $m.movieFile.quality.quality.name 
+            } else { 
+                "Unknown" 
+            }
+            
+            Write-Host "`n[$counter/$($movies.Count)] $($m.title) ($($m.year))" -ForegroundColor White
+            Write-Host "  ID: $($m.id)" -ForegroundColor Gray
+            Write-Host "  Path: $($m.path)" -ForegroundColor Gray
+            Write-Host "  Quality: $qual" -ForegroundColor Gray
+            
+            if ($m.collection) {
+                Write-Host "  Collection: $($m.collection.title)" -ForegroundColor Gray
+            }
+            
+            # Show date info if recent filter was used
+            if ($DaysBack -gt 0) {
+                if ($m.dateAdded) {
+                    Write-Host "  Added: $($m.dateAdded)" -ForegroundColor Gray
+                }
+                if ($m.lastInfoSync) {
+                    Write-Host "  Last sync: $($m.lastInfoSync)" -ForegroundColor Gray
+                }
+            }
         }
-        Write-Host "`n📊 $statusMsg" -ForegroundColor Yellow
+        
+        Write-Host "`n🧪 DRY RUN COMPLETE - No changes were made" -ForegroundColor Yellow
+        Write-Host "Remove -DryRun parameter to execute the rename operations" -ForegroundColor Yellow
+        exit 0
     }
     
     $successCount = 0
@@ -231,4 +351,4 @@ catch {
     exit 1
 }
 
-# Updated: Fixed PowerShell syntax and added Skip parameter (v1.1)
+# Updated: Added filtering capabilities - FilterPath (configurable), FilterNoQuality, DaysBack, SearchTitle, DryRun (v1.1)
