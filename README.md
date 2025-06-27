@@ -223,6 +223,10 @@ This way new movies get organized automatically while you can bulk-process exist
 
 **"jq not found"**: Install with `winget install jqlang.jq` (Windows) or your package manager
 
+**"Script not found at: \rename-radarr-folders.sh"**: This happens when `${SCRIPTS_DIR}` variable expansion fails in `config.env`. Make sure your `SCRIPTS_DIR` path ends with a backslash (`\`) on Windows or forward slash (`/`) on Linux/macOS, and doesn't contain spaces in the middle without proper quoting.
+
+**"Script exited with code: 2" in Radarr**: Usually means the batch script can't find the shell script. Check that all paths in `config.env` are correct and that Git Bash is properly installed.
+
 **Movies not updating**: Check the log file for detailed error messages
 
 ## Requirements

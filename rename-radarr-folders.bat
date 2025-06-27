@@ -20,10 +20,6 @@ if exist "%CONFIG_FILE%" (
                     for /f "tokens=1,2 delims==" %%b in ("!line!") do (
                         set "var_name=%%b"
                         set "var_value=%%c"
-                        REM Handle variable expansion for ${SCRIPTS_DIR}
-                        if defined SCRIPTS_DIR (
-                            set "var_value=!var_value:${SCRIPTS_DIR}=%SCRIPTS_DIR%!"
-                        )
                         set "!var_name!=!var_value!"
                     )
                 )
@@ -32,12 +28,20 @@ if exist "%CONFIG_FILE%" (
     )
 )
 
-REM Expand ${SCRIPTS_DIR} in paths first
+REM Expand ${SCRIPTS_DIR} in all paths after loading config
 if defined SCRIPTS_DIR (
     if defined RENAME_SH_PATH (
         set "RENAME_SH_PATH=!RENAME_SH_PATH:${SCRIPTS_DIR}=%SCRIPTS_DIR%!"
         REM Fix double backslashes that might occur
         set "RENAME_SH_PATH=!RENAME_SH_PATH:\\=\!"
+    )
+    if defined RENAME_BAT_PATH (
+        set "RENAME_BAT_PATH=!RENAME_BAT_PATH:${SCRIPTS_DIR}=%SCRIPTS_DIR%!"
+        set "RENAME_BAT_PATH=!RENAME_BAT_PATH:\\=\!"
+    )
+    if defined LOG_FILE (
+        set "LOG_FILE=!LOG_FILE:${SCRIPTS_DIR}=%SCRIPTS_DIR%!"
+        set "LOG_FILE=!LOG_FILE:\\=\!"
     )
 )
 
@@ -48,6 +52,7 @@ if "%RENAME_SH_PATH%"=="" set "RENAME_SH_PATH=C:\path\to\your\scripts\rename-rad
 
 REM Validate critical paths before execution
 echo [%date% %time%] DEBUG: Checking paths... >> "%LOG_FILE%"
+echo [%date% %time%] DEBUG: SCRIPTS_DIR="%SCRIPTS_DIR%" >> "%LOG_FILE%"
 echo [%date% %time%] DEBUG: GIT_BASH_PATH="%GIT_BASH_PATH%" >> "%LOG_FILE%"
 echo [%date% %time%] DEBUG: RENAME_SH_PATH="%RENAME_SH_PATH%" >> "%LOG_FILE%"
 
