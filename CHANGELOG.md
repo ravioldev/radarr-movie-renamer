@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 .\run.ps1 -FilterPath "temp" -FilterNoQuality -DaysBack 30
 ```
 
-## [1.0] - 2024-12-XX
+## [1.0] - 2025-06-26
 
 ### Added
 - **Cross-Platform Support**: Works on Windows, Linux, and macOS
