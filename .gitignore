@@ -34,4 +34,5 @@ Desktop.ini
 ehthumbs.db
 
 # Release files
+/releases
 releases/
