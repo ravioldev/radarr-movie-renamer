@@ -69,7 +69,7 @@ if (!$radarr -or !$apiKey) {
     exit 1
 }
 
-if (!$renameBatPath -or !(Test-Path $renameBatPath)) {s
+if (!$renameBatPath -or !(Test-Path $renameBatPath)) {
     Write-Error "Batch script not found: $renameBatPath"
     Write-Host "ℹ️  Check RENAME_BAT_PATH in config.env" -ForegroundColor Yellow
     exit 2

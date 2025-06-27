@@ -227,8 +227,26 @@ sanitize(){             # Clean for Windows (maintains UTF-8)
 }
 
 drive(){ echo "${1%%:*}"; }
-# Fix: Quote paths in rsync command to handle spaces
-copy_tree(){ rsync $RSYNC_OPTIONS --chmod="$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE" "$1/" "$2/"; }
+# Fix: Quote paths in copy command to handle spaces - Windows compatible
+copy_tree(){ 
+  # Check if rsync is available, fallback to native commands
+  if command -v rsync >/dev/null 2>&1; then
+    rsync $RSYNC_OPTIONS --chmod="$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE" "$1/" "$2/"
+  else
+    # Windows/Git Bash fallback - use cp with recursive copy
+    log "ℹ️  rsync not available, using cp fallback"
+    shopt -s dotglob nullglob
+    cp -r "$1"/* "$2"/ 2>/dev/null || {
+      # If cp fails, try robocopy (Windows native)
+      log "ℹ️  cp failed, trying robocopy"
+      # Convert paths to Windows format for robocopy
+      local src_win=$(cygpath -w "$1" 2>/dev/null || echo "$1")
+      local dst_win=$(cygpath -w "$2" 2>/dev/null || echo "$2") 
+      robocopy "$src_win" "$dst_win" /E /COPY:DAT /R:1 /W:1 >/dev/null 2>&1 || true
+    }
+    shopt -u dotglob nullglob
+  fi
+}
 norm(){ tr '\\' '/' <<<"$1"; }
 
 # ───────────── 3. Arguments var=val ──────────────────────────────────
