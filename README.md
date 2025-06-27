@@ -2,15 +2,11 @@
 
 Scripts to automatically organize your Radarr movie library with proper folder naming that actually makes sense.
 
-## 🆕 What's New in v1.1
+## 📋 Latest Updates
 
-- **🎯 Selective Processing**: Target specific movies instead of processing your entire library
-- **🔍 Smart Filters**: Find movies with `[Unknown]` folders, missing quality, or recent additions
-- **🧪 Preview Mode**: See exactly what would be changed before making any modifications (`-DryRun`)
-- **⚡ Flexible Path Filtering**: Search for any text in folder paths - not just "[Unknown]"
-- **📅 Date-Based Processing**: Process only movies added in the last N days
+**Version 1.1** introduces selective processing and smart filters for precise movie targeting. See [CHANGELOG.md](CHANGELOG.md) for detailed release notes and examples.
 
-Perfect for fixing specific issues or maintaining your library incrementally!
+**Quick highlights**: `-FilterPath`, `-FilterNoQuality`, `-DaysBack`, `-DryRun` parameters for targeted processing.
 
 ## Why Use This Instead of Radarr's Built-in Renaming?
 
@@ -85,7 +81,7 @@ avengers_endgame_2019_4k_hdr_atmos/
 6. **Process everything**: `.\run.ps1`
 7. **Resume after interruption**: `.\run.ps1 -Skip 100` (continues from movie #101)
 
-### Quick Fixes (New in v1.1)
+### Quick Fixes (v1.1)
 ```powershell
 # See movies that need fixing without making changes
 .\run.ps1 -FilterPath "[Unknown]" -DryRun
@@ -96,6 +92,8 @@ avengers_endgame_2019_4k_hdr_atmos/
 .\run.ps1 -FilterNoQuality               # Fix movies without quality
 .\run.ps1 -DaysBack 7                    # Fix recent additions only
 ```
+
+> 💡 **More examples and detailed usage**: See [CHANGELOG.md](CHANGELOG.md) for comprehensive v1.1 feature documentation.
 
 ## Configuration
 
@@ -277,6 +275,7 @@ With `NATIVE_LANGUAGE=es`:
 ├── rename-radarr-folders.bat  # Individual movie processing
 ├── rename-radarr-folders.sh   # Main logic (bash)
 ├── get-movie-ids.ps1          # List your movies for testing
+├── CHANGELOG.md               # Version history and release notes
 └── logs/                      # Detailed logs
 ```
 
