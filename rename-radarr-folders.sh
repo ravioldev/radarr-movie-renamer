@@ -227,23 +227,103 @@ sanitize(){             # Clean for Windows (maintains UTF-8)
 }
 
 drive(){ echo "${1%%:*}"; }
-# Fix: Quote paths in copy command to handle spaces - Windows compatible
+# SAFE copy function to prevent copying entire Radarr installation
 copy_tree(){ 
+  local src_dir="$1"
+  local dst_dir="$2"
+  
+  # SAFETY CHECK: Prevent copying from Radarr installation directories
+  local radarr_install_patterns=("Program Files" "programdata" "appdata" ".exe" "radarr.exe" "Radarr.exe")
+  for pattern in "${radarr_install_patterns[@]}"; do
+    if [[ "$src_dir" == *"$pattern"* ]]; then
+      log "❌ SAFETY CHECK FAILED: Source directory appears to be a Radarr installation: $src_dir"
+      log "❌ Refusing to copy from potential installation directory to prevent data corruption"
+      exit 99
+    fi
+  done
+  
+  # SAFETY CHECK: Verify source is a movie directory (contains video files)
+  local video_file_count=0
+  local total_file_count=0
+  
+  # Count video files vs total files
+  if [[ -d "$src_dir" ]]; then
+    # Count video files
+    find_cmd="find \"$src_dir\" -maxdepth $FIND_MAXDEPTH -type f \\("
+    first=true
+    for ext in $VIDEO_EXTENSIONS; do
+      [[ $first == true ]] && first=false || find_cmd+=" -o"
+      find_cmd+=" -iname '*.$ext'"
+    done
+    find_cmd+=" \\)"
+    video_file_count=$(eval "$find_cmd" | wc -l)
+    
+    # Count total files
+    total_file_count=$(find "$src_dir" -maxdepth $FIND_MAXDEPTH -type f | wc -l)
+    
+    log "🔍 Safety Check - Source Directory Analysis:"
+    log "   Video files found: $video_file_count"
+    log "   Total files found: $total_file_count"
+    
+    # If more than 100 files and less than 10% are video files, something is wrong
+    if [[ $total_file_count -gt 100 && $video_file_count -eq 0 ]]; then
+      log "❌ SAFETY CHECK FAILED: Directory contains $total_file_count files but no video files"
+      log "❌ This looks like a system/application directory, not a movie folder"
+      exit 98
+    fi
+    
+    if [[ $total_file_count -gt 500 ]]; then
+      local video_percentage=$((video_file_count * 100 / total_file_count))
+      if [[ $video_percentage -lt 5 ]]; then
+        log "❌ SAFETY CHECK FAILED: Directory contains $total_file_count files but only $video_file_count video files ($video_percentage%)"
+        log "❌ This looks like a system/application directory, not a movie folder"
+        exit 97
+      fi
+    fi
+  fi
+  
+  log "✅ Safety checks passed - proceeding with copy operation"
+  log "🔄 Copying from: $src_dir"
+  log "🔄 Copying to: $dst_dir"
+  
   # Check if rsync is available, fallback to native commands
   if command -v rsync >/dev/null 2>&1; then
-    rsync $RSYNC_OPTIONS --chmod="$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE" "$1/" "$2/"
+    log "📁 Using rsync with selective file copying"
+    # Use the safe RSYNC_OPTIONS that only copy video and subtitle files
+    rsync $RSYNC_OPTIONS --chmod="$FILE_PERMISSIONS_DIR,$FILE_PERMISSIONS_FILE" "$src_dir/" "$dst_dir/"
   else
-    # Windows/Git Bash fallback - use cp with recursive copy
-    log "ℹ️  rsync not available, using cp fallback"
+    # Windows/Git Bash fallback - use selective cp
+    log "ℹ️  rsync not available, using selective cp fallback"
     shopt -s dotglob nullglob
-    cp -r "$1"/* "$2"/ 2>/dev/null || {
-      # If cp fails, try robocopy (Windows native)
-      log "ℹ️  cp failed, trying robocopy"
+    
+    # Only copy video and subtitle files
+    local files_copied=0
+    for ext in $VIDEO_EXTENSIONS srt sub idx; do
+      for file in "$src_dir"/*."$ext"; do
+        if [[ -f "$file" ]]; then
+          cp "$file" "$dst_dir"/ 2>/dev/null && ((files_copied++))
+        fi
+      done
+    done
+    
+    log "📁 Copied $files_copied media files"
+    
+    # If selective copy fails or finds no files, try robocopy as last resort
+    if [[ $files_copied -eq 0 ]]; then
+      log "⚠️  No media files found with selective copy, trying robocopy with filters"
       # Convert paths to Windows format for robocopy
-      local src_win=$(cygpath -w "$1" 2>/dev/null || echo "$1")
-      local dst_win=$(cygpath -w "$2" 2>/dev/null || echo "$2") 
-      robocopy "$src_win" "$dst_win" /E /COPY:DAT /R:1 /W:1 >/dev/null 2>&1 || true
-    }
+      local src_win=$(cygpath -w "$src_dir" 2>/dev/null || echo "$src_dir")
+      local dst_win=$(cygpath -w "$dst_dir" 2>/dev/null || echo "$dst_dir") 
+      
+      # Create include pattern for robocopy (video and subtitle extensions)
+      local robocopy_include=""
+      for ext in $VIDEO_EXTENSIONS srt sub idx; do
+        robocopy_include="$robocopy_include *.$ext"
+      done
+      
+      robocopy "$src_win" "$dst_win" $robocopy_include /S /COPY:DAT /R:1 /W:1 >/dev/null 2>&1 || true
+    fi
+    
     shopt -u dotglob nullglob
   fi
 }
@@ -471,6 +551,37 @@ if [[ ! -d "$ORIG_DIR" ]]; then
   exit 96
 fi
 
+# CRITICAL SAFETY CHECK: Prevent processing system/application directories
+log "🔍 Performing critical safety checks on source directory..."
+
+# Check for Radarr installation indicators
+radarr_indicators=("Radarr.exe" "radarr.exe" "NzbDrone.exe" "bin" "logs" "config.xml" "Database" "Backup")
+for indicator in "${radarr_indicators[@]}"; do
+  if [[ -e "$ORIG_DIR/$indicator" ]]; then
+    log "❌ CRITICAL SAFETY VIOLATION: Source directory contains Radarr installation files: $ORIG_DIR/$indicator"
+    log "❌ This appears to be a Radarr installation directory, not a movie folder!"
+    log "❌ REFUSING TO PROCESS to prevent catastrophic data corruption"
+    exit 101
+  fi
+done
+
+# Check if directory has suspicious system characteristics
+if [[ "$ORIG_DIR" == *"Program Files"* ]] || [[ "$ORIG_DIR" == *"ProgramData"* ]] || [[ "$ORIG_DIR" == *"AppData"* ]]; then
+  log "❌ CRITICAL SAFETY VIOLATION: Source directory is in a system folder: $ORIG_DIR"
+  log "❌ REFUSING TO PROCESS system directories to prevent data corruption"
+  exit 102
+fi
+
+# Check file composition to ensure it's a movie directory
+executable_count=$(find "$ORIG_DIR" -maxdepth 2 -name "*.exe" -o -name "*.dll" -o -name "*.msi" | wc -l)
+if [[ $executable_count -gt 10 ]]; then
+  log "❌ CRITICAL SAFETY VIOLATION: Source directory contains $executable_count executable files"
+  log "❌ This appears to be an application directory, not a movie folder!"
+  log "❌ REFUSING TO PROCESS to prevent data corruption"
+  exit 103
+fi
+
+log "✅ Safety checks passed for source directory"
 log "📂 Source directory: $ORIG_DIR"
 
 # Already in destination
