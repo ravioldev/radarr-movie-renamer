@@ -301,11 +301,15 @@ With `NATIVE_LANGUAGE=es`:
 ├── config.env                   # Your configuration
 ├── run.ps1                     # Bulk processing script
 ├── rename-radarr-folders.bat   # Individual movie processing (folders)
+├── rename-radarr-folders.ps1   # PowerShell wrapper
 ├── rename-radarr-folders.sh    # Main folder logic (bash)
+├── rename-radarr-folders       # Shell script for Linux/macOS compatibility
 ├── rename-radarr-files.sh      # File renaming logic (bash)
 ├── get-movie-ids.ps1           # List your movies for testing
+├── get-single-movie.ps1        # Single movie processing utility
 ├── check-git-bash.ps1          # Diagnostic tool for Git Bash
 ├── clean-logs.ps1              # Log management utility
+├── README.md                   # This documentation file
 ├── CHANGELOG.md                # Version history and release notes
 └── logs/                       # Detailed logs
 ```
