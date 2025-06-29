@@ -29,6 +29,26 @@ RADARR_URL="${RADARR_URL:-http://127.0.0.1:7878}"
 RADARR_API_KEY="${RADARR_API_KEY:-}"
 TMDB_API_KEY="${TMDB_API_KEY:-}"  # Optional - can be empty
 
+# ───────────── LOGGING CONFIGURATION ─────────────────────────────────────
+# LOG_LEVEL controls verbosity: MINIMAL, NORMAL, DETAILED, DEBUG
+# MINIMAL: Only errors, warnings, and final results
+# NORMAL: Above + success messages and important info (recommended)
+# DETAILED: Above + process steps and decisions  
+# DEBUG: Everything (original behavior - very verbose)
+LOG_LEVEL="${LOG_LEVEL:-NORMAL}"
+
+# Custom Formats logging - separate control due to high volume
+# LOG_CUSTOM_FORMATS: true=log all CF attempts, false=log only errors/success
+LOG_CUSTOM_FORMATS="${LOG_CUSTOM_FORMATS:-false}"
+
+# Quality detection logging - separate control due to high volume  
+# LOG_QUALITY_DEBUG: true=log detailed quality analysis, false=log only final result
+LOG_QUALITY_DEBUG="${LOG_QUALITY_DEBUG:-false}"
+
+# Language detection logging - separate control
+# LOG_LANGUAGE_DEBUG: true=log language detection steps, false=log only final choice
+LOG_LANGUAGE_DEBUG="${LOG_LANGUAGE_DEBUG:-false}"
+
 # Validate API configuration
 if [[ -z $RADARR_API_KEY || $RADARR_API_KEY == "your_radarr_api_key_here" ]]; then
   printf '[%s] ❌ ERROR: RADARR_API_KEY is not configured\n' "$(date +'%F %T')"
@@ -54,13 +74,56 @@ RSYNC_OPTIONS="${RSYNC_OPTIONS:--a --ignore-existing}"
 USE_COLLECTIONS="${USE_COLLECTIONS:-true}"
 INCLUDE_QUALITY_TAG="${INCLUDE_QUALITY_TAG:-true}"
 
-log(){ printf '[%s] %s\n' "$(date +'%F %T')" "$*" >&2; }
+# Enhanced logging functions with level control
+log() { 
+  # Always log errors, warnings, and important messages (MINIMAL level and above)
+  printf '[%s] %s\n' "$(date +'%F %T')" "$*" >&2; 
+}
+
+log_info() {
+  # Log informational messages (NORMAL level and above)
+  case "$LOG_LEVEL" in
+    MINIMAL) return ;;
+    *) log "$@" ;;
+  esac
+}
+
+log_detailed() {
+  # Log detailed process information (DETAILED level and above)  
+  case "$LOG_LEVEL" in
+    MINIMAL|NORMAL) return ;;
+    *) log "$@" ;;
+  esac
+}
+
+log_debug() {
+  # Log debug information (DEBUG level only)
+  case "$LOG_LEVEL" in
+    DEBUG) log "$@" ;;
+    *) return ;;
+  esac
+}
+
+log_quality() {
+  # Log quality detection details (only if LOG_QUALITY_DEBUG=true)
+  [[ "$LOG_QUALITY_DEBUG" == "true" ]] && log "$@"
+}
+
+log_language() {
+  # Log language detection details (only if LOG_LANGUAGE_DEBUG=true)
+  [[ "$LOG_LANGUAGE_DEBUG" == "true" ]] && log "$@"
+}
+
+log_custom_formats() {
+  # Log custom formats attempts (only if LOG_CUSTOM_FORMATS=true)
+  [[ "$LOG_CUSTOM_FORMATS" == "true" ]] && log "$@"
+}
 
 # Auto-detect language preferences from Radarr (optional)
 detect_radarr_language_preference() {
   [[ $AUTO_DETECT_FROM_RADARR != "true" ]] && return 1
   
-  log "🔍 Attempting to detect language preference from Radarr..."
+  log_detailed "🔍 Attempting to detect language preference from Radarr..."
   
   # Try to get Radarr's UI settings
   local ui_config=$(curl -sf --max-time 10 --retry 1 \
@@ -72,13 +135,13 @@ detect_radarr_language_preference() {
     if [[ -n $ui_language && $ui_language != "null" ]]; then
       # Convert UI language codes to ISO 639-1 (e.g., "en-US" -> "en")
       ui_language=${ui_language:0:2}
-      log "✅ Detected Radarr UI language: $ui_language"
+      log_info "✅ Detected Radarr UI language: $ui_language"
       echo "$ui_language"
       return 0
     fi
   fi
   
-  log "ℹ️  Could not detect language preference from Radarr"
+  log_detailed "ℹ️  Could not detect language preference from Radarr"
   return 1
 }
 
@@ -89,7 +152,7 @@ fetch_tmdb_data() {
   
   # Validate TMDB API key
   if [[ -z $TMDB_API_KEY ]]; then
-    log "ℹ️  TMDB disabled (no API key configured)"
+    log_detailed "ℹ️  TMDB disabled (no API key configured)"
     return 1
   fi
   
@@ -160,12 +223,26 @@ quality_tag(){          # 1-N tracks → tag
   
   # PRIORITY 1: Check for "always bad quality" sources (regardless of resolution)
   # These sources are always LowQuality no matter what resolution they claim
+  # FIXED: More specific patterns to avoid false positives like "Hitch" containing "tc"
   for v in "$@"; do
     [[ -z "$v" || "$v" == "null" ]] && continue
-    case "${v,,}" in
-      *cam*|*telesync*|*tc*|*telecine*|*workprint*|*r5*|*pdvd*)
-        echo "LowQuality"; return ;;
-    esac
+          case "${v,,}" in
+        *telesync*|*telecine*|*workprint*|*r5*|*pdvd*) 
+          echo "LowQuality"; return ;;
+        # FIXED: More specific CAM patterns to avoid matching words like "came", "camp", etc.
+        *.cam.*|*-cam-*|*_cam_*|*.cam|*cam.*|*camrip*) 
+          echo "LowQuality"; return ;;
+        # FIXED: Ultra-specific TC patterns - only match when TC is clearly a quality indicator
+        # Pattern explanation:
+        # *.tc.* → file.tc.720p (TC as separate component)
+        # *-tc-* → movie-tc-2023 (TC with dashes)
+        # *_tc_* → movie_tc_720p (TC with underscores)  
+        # *.tc   → movie.tc (TC at end)
+        # *[.-_]tc[.-_]* → only TC surrounded by separators
+        # *[0-9]tc[.-_]* → year/number + tc + separator (e.g., 2023tc.720p)
+        *.tc.*|*-tc-*|*_tc_*|*.tc|*[.-_]tc[.-_]*|*[0-9]tc[.-_]*) 
+          echo "LowQuality"; return ;;
+      esac
   done
   
   # PRIORITY 2: Check for special case - good quality sources with resolution
@@ -213,7 +290,7 @@ quality_tag(){          # 1-N tracks → tag
     # Extract numeric resolution for range checking
     local numeric_res=$(echo "$resolution" | grep -o '[0-9]\+' | head -1)
     
-    # Handle special resolution patterns first
+    # Handle special resolution patterns first - FIXED: If we have explicit resolution, use it
     case "${resolution,,}" in
       *2160*|*4k*|*uhd*) echo "2160p"; return ;;
       *1440*|*2k*)       echo "1440p"; return ;;
@@ -307,8 +384,12 @@ quality_tag(){          # 1-N tracks → tag
     esac
     
     # Range-based detection for any numeric resolution found
+    # BUT only consider valid resolution ranges (exclude years like 2004, 2013, etc.)
     if [[ -n "$numeric_res" && "$numeric_res" =~ ^[0-9]+$ ]]; then
-      if [[ $numeric_res -ge 2000 ]]; then
+      # FIXED: Exclude common year patterns (1900-2099) that appear in filenames
+      if [[ $numeric_res -ge 1900 && $numeric_res -le 2099 ]]; then
+        continue  # Skip year numbers, don't treat them as resolution
+      elif [[ $numeric_res -ge 2000 ]]; then
         echo "2160p"; return
       elif [[ $numeric_res -ge 1350 ]]; then
         echo "1440p"; return
@@ -1293,8 +1374,8 @@ else
     log "ℹ️  Already had real quality: $SIMPLE"
   elif [[ "$SIMPLE" == "LowQuality" && "$UPDATED_SIMPLE" == "LowQuality" ]]; then
     # Check if LowQuality is now backed by real Radarr data
-    local has_real_quality_data=$(echo "$MOVIE_JSON" | jq -r '.movieFile.quality.quality.name // empty')
-    local has_real_resolution_data=$(echo "$MOVIE_JSON" | jq -r '.movieFile.mediaInfo.video.resolution // empty')
+    has_real_quality_data=$(echo "$MOVIE_JSON" | jq -r '.movieFile.quality.quality.name // empty')
+    has_real_resolution_data=$(echo "$MOVIE_JSON" | jq -r '.movieFile.mediaInfo.video.resolution // empty')
     
     if [[ -n "$has_real_quality_data" && "$has_real_quality_data" != "null" && "$has_real_quality_data" != "" ]]; then
       log "✅ LowQuality confirmed as real quality by Radarr: $has_real_quality_data"

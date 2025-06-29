@@ -98,6 +98,36 @@ log() {
   fi
 }
 
+# Enhanced logging functions with level control (copied from main script)
+log_info() {
+  # Log informational messages (NORMAL level and above)
+  case "${LOG_LEVEL:-NORMAL}" in
+    MINIMAL) return ;;
+    *) log "$@" ;;
+  esac
+}
+
+log_detailed() {
+  # Log detailed process information (DETAILED level and above)  
+  case "${LOG_LEVEL:-NORMAL}" in
+    MINIMAL|NORMAL) return ;;
+    *) log "$@" ;;
+  esac
+}
+
+log_debug() {
+  # Log debug information (DEBUG level only)
+  case "${LOG_LEVEL:-NORMAL}" in
+    DEBUG) log "$@" ;;
+    *) return ;;
+  esac
+}
+
+log_custom_formats() {
+  # Log custom formats attempts (only if LOG_CUSTOM_FORMATS=true)
+  [[ "${LOG_CUSTOM_FORMATS:-false}" == "true" ]] && log "$@"
+}
+
 log "🎬 Starting hybrid file renaming for movie ID: $MOVIE_ID"
 log "📁 Movie directory: $MOVIE_DIR"
 log "🔧 Using hybrid approach: API data + manual processing"
@@ -419,30 +449,30 @@ TOKEN_VALUES["Release Group"]="$RELEASE_GROUP"       # For patterns like {-Relea
 TOKEN_VALUES["Edition.Tags"]=$(echo "$MOVIE_JSON" | jq -r '.movieFile.edition // ""')
 
 # Custom formats - IMPROVED: Multiple extraction methods
-log "🔍 Custom Formats Extraction Debug:"
-log "   Trying method 1: .movieFile.customFormats[]?.name"
+log_custom_formats "🔍 Custom Formats Extraction Debug:"
+log_custom_formats "   Trying method 1: .movieFile.customFormats[]?.name"
 custom_formats_method1=$(echo "$MOVIE_JSON" | jq -r '.movieFile.customFormats[]?.name // empty' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
 
-log "   Trying method 2: .customFormats[]?.name"  
+log_custom_formats "   Trying method 2: .customFormats[]?.name"  
 custom_formats_method2=$(echo "$MOVIE_JSON" | jq -r '.customFormats[]?.name // empty' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
 
-log "   Trying method 3: .movieFile.customFormatTags"
+log_custom_formats "   Trying method 3: .movieFile.customFormatTags"
 custom_formats_method3=$(echo "$MOVIE_JSON" | jq -r '.movieFile.customFormatTags[]? // empty' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
 
 # Use the first non-empty result
 custom_formats=""
 if [[ -n "$custom_formats_method1" ]]; then
   custom_formats="$custom_formats_method1"
-  log "   ✅ Using method 1 result: '$custom_formats'"
+  log_custom_formats "   ✅ Using method 1 result: '$custom_formats'"
 elif [[ -n "$custom_formats_method2" ]]; then
   custom_formats="$custom_formats_method2"
-  log "   ✅ Using method 2 result: '$custom_formats'"
+  log_custom_formats "   ✅ Using method 2 result: '$custom_formats'"
 elif [[ -n "$custom_formats_method3" ]]; then
   custom_formats="$custom_formats_method3"
-  log "   ✅ Using method 3 result: '$custom_formats'"
+  log_custom_formats "   ✅ Using method 3 result: '$custom_formats'"
 else
-  log "   ❌ No custom formats found with any method"
-  log "   Raw customFormats JSON: $(echo "$MOVIE_JSON" | jq -r '.movieFile.customFormats // .customFormats // "null"' 2>/dev/null)"
+  log_custom_formats "   ❌ No custom formats found with any method"
+  log_debug "   Raw customFormats JSON: $(echo "$MOVIE_JSON" | jq -r '.movieFile.customFormats // .customFormats // "null"' 2>/dev/null)"
 fi
 
 TOKEN_VALUES["Custom.Formats"]="$custom_formats"
@@ -474,10 +504,9 @@ fi
 # Check Custom Formats
 custom_formats_value="${TOKEN_VALUES["Custom.Formats"]:-}"
 if [[ -n "$custom_formats_value" ]]; then
-  log "   ✅ Custom.Formats has value: '$custom_formats_value'"
+  log_custom_formats "   ✅ Custom.Formats has value: '$custom_formats_value'"
 else
-  log "   ❌ Custom.Formats is EMPTY - will not appear in filename"
-  log "      Movie may not have custom formats assigned in Radarr"
+  log_custom_formats "   ❌ Custom.Formats is EMPTY - will not appear in filename"
 fi
 
 # Check Release Group
@@ -638,12 +667,12 @@ else
   # Check if Custom Formats were included
   custom_in_result=""
   if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["Custom.Formats"]}"* ]] && [[ -n "${TOKEN_VALUES["Custom.Formats"]}" ]]; then
-    custom_in_result="✅ Custom Formats included: '${TOKEN_VALUES["Custom.Formats"]}'"
-  elif [[ -z "${TOKEN_VALUES["Custom.Formats"]}" ]]; then
-    custom_in_result="❌ Custom Formats not included (empty value)"
-  else
-    custom_in_result="⚠️  Custom Formats may be included but not clearly identifiable"
-  fi
+  custom_in_result="✅ Custom Formats included: '${TOKEN_VALUES["Custom.Formats"]}'"
+elif [[ -z "${TOKEN_VALUES["Custom.Formats"]}" ]]; then
+  custom_in_result="ℹ️  Custom Formats not included (none assigned)"
+else
+  custom_in_result="⚠️  Custom Formats may be included but not clearly identifiable"
+fi
   log "   $custom_in_result"
   
   # Check if Release Group was included

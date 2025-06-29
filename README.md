@@ -1,37 +1,10 @@
-# Radarr Movie Renamer v2.0
+# Radarr Movie Renamer v2.1
 
-Complete Radarr library organization solution that renames both folders AND files with intelligent quality detection and MediaInfo extraction.
-
-## 📋 Latest Updates
-
-**Version 2.0** is a major upgrade with file renaming support and enhanced quality processing. Your movie library will never look better!
-
-**🆕 New in v2.0**: File renaming, smart SDTV handling, improved MediaInfo extraction, enhanced UTF-8 support, and robust error handling.
-
-## 🚀 What's New in v2.0
-
-### **Complete File Renaming**
-Not just folders anymore! v2.0 now renames your actual movie files with proper naming conventions:
-- **Before**: `Movie.Name.2024.1080p.WEB-DL.x264-GROUP.mkv`
-- **After**: `Movie.Name.2024.1080p.h265.EAC3.Atmos.5.1-GROUP.mkv`
-
-### **Smart Quality Processing**
-Intelligent quality detection that works differently for folders vs files:
-- **Folders**: Clean quality tags like `[1080p]`, `[720p]` - never shows `[SDTV]`
-- **Files**: Detailed quality info like `720p-SCREENER`, `480p-SDTV`, `2160p-TELESYNC`
-
-### **Enhanced MediaInfo Integration**
-Automatically extracts and includes technical details in filenames:
-- Video codec: `h265`, `x264`, `AV1`
-- Audio codec: `EAC3`, `DTS`, `AAC`, `TrueHD`
-- Audio channels: `5.1`, `7.1`, `Atmos`
-
-### **Robust Error Handling**
-v2.0 handles edge cases gracefully with improved UTF-8 support and better path handling for Windows systems.
+Complete Radarr library organization solution that renames both folders AND files with intelligent quality detection, smart logging, and robust error handling.
 
 ## Why Use This Instead of Radarr's Built-in Renaming?
 
-Radarr's standard renaming is limited and frustrating. Here's what you get with v2.0 that Radarr can't do:
+Radarr's standard renaming is limited and frustrating. Here's what you get with this script that Radarr can't do:
 
 ### **Collections Support**
 - **Radarr**: `Iron Man (2008)` and `Avengers Endgame (2019)` sit randomly in your library
@@ -95,27 +68,17 @@ avengers_endgame_2019_4k_hdr_atmos/
 
 ## Quick Setup
 
+### 🛠️ Initial Setup
 1. **Back up your Radarr database** (seriously, do this first)
 2. Edit `config.env` with your Radarr URL and API key
+
+### 🎬 Processing Movies
 3. **Preview what would be changed**: `.\run.ps1 -MaxMovies 5 -DryRun`
 4. **Test with a few movies**: `.\run.ps1 -MaxMovies 5`
-5. **Fix specific issues**: `.\run.ps1 -FilterPath "[Unknown]"` or `.\run.ps1 -FilterNoQuality`
-6. **Process everything**: `.\run.ps1`
-7. **Resume after interruption**: `.\run.ps1 -Skip 100` (continues from movie #101)
+5. **Process everything**: `.\run.ps1`
+6. **Resume after interruption**: `.\run.ps1 -Skip 100` (continues from movie #101)
 
-### Quick Fixes (v1.1)
-```powershell
-# See movies that need fixing without making changes
-.\run.ps1 -FilterPath "[Unknown]" -DryRun
-.\run.ps1 -FilterNoQuality -DryRun
-
-# Fix most common issues
-.\run.ps1 -FilterPath "[Unknown]"        # Fix folders with [Unknown] 
-.\run.ps1 -FilterNoQuality               # Fix movies without quality
-.\run.ps1 -DaysBack 7                    # Fix recent additions only
-```
-
-> 💡 **More examples and detailed usage**: See [CHANGELOG.md](CHANGELOG.md) for comprehensive v1.1 feature documentation.
+> 💡 **More examples and detailed usage**: See [CHANGELOG.md](CHANGELOG.md) for comprehensive feature documentation.
 
 ## Configuration
 
@@ -130,27 +93,50 @@ RADARR_API_KEY=your_api_key_here
 NATIVE_LANGUAGE=es              # Spanish movies show Spanish titles
 FALLBACK_LANGUAGE=en            # English movies show English titles
 
+# Logging configuration - smart logging prevents oversized logs
+LOG_LEVEL=NORMAL               # MINIMAL/NORMAL/DETAILED/DEBUG (see details below)
+LOG_CUSTOM_FORMATS=false       # Keep false - prevents log spam
+LOG_QUALITY_DEBUG=false        # Keep false - reduces noise
+LOG_LANGUAGE_DEBUG=false       # Keep false - reduces noise
+
 # Folder naming options - toggle what you want
 USE_COLLECTIONS=true            # true: "Collection - Title", false: just "Title"
 INCLUDE_QUALITY_TAG=true        # true: add [1080p], false: no quality tags
+UPDATE_FOLDER_TIMESTAMP=false  # true: update folder dates, false: preserve original
 
-# File naming pattern (NEW in v2.0)
+# File renaming (renames both folders AND files)
+ENABLE_FILE_RENAMING=false     # Enable Radarr-compatible file renaming
 FILE_NAMING_PATTERN="{Movie.CleanTitle}.{Release.Year}.{Quality.Full}.{MediaInfo.VideoCodec}.{MediaInfo.AudioCodec}.{MediaInfo.AudioChannels}-{Release.Group}"
 
 # Optional TMDB integration for better native language titles
 TMDB_API_KEY=your_tmdb_key      # Leave empty to disable
 
-# Paths (adjust for your OS)
-# Windows:
-SCRIPTS_DIR=C:\scripts\
-GIT_BASH_PATH=C:\Program Files\Git\bin\bash.exe
+# System paths (adjust for your OS)
+SCRIPTS_DIR="C:\Scripts\radarr-renamer"           # Where scripts are located
+LOG_FILE="C:\Scripts\radarr-renamer\logs\rename-radarr-folders.log"  # Log file location
+GIT_BASH_PATH="C:\Program Files\Git\bin\bash.exe"  # Git Bash executable
 
-# Linux/macOS:
-# SCRIPTS_DIR=/home/user/scripts/
-# GIT_BASH_PATH=/bin/bash
+# Linux/macOS examples:
+# SCRIPTS_DIR="/home/user/scripts/radarr-renamer"
+# LOG_FILE="/var/log/rename-radarr-folders.log"
+# GIT_BASH_PATH="/bin/bash"
 ```
 
-### Naming Pattern Examples
+### Logging Levels Explained
+
+Choose the right logging level for your needs:
+
+- **MINIMAL**: Only errors, warnings, and final results (production use)
+- **NORMAL**: Above + success messages and important info (recommended)
+- **DETAILED**: Above + process steps and decisions (troubleshooting)
+- **DEBUG**: Everything including technical details (development only)
+
+### File Renaming Options
+
+- **ENABLE_FILE_RENAMING=false**: Only renames folders (default, safest)
+- **ENABLE_FILE_RENAMING=true**: Renames both folders AND movie files using Radarr's API
+
+### Folder Naming Examples
 
 With these settings you get different results:
 
@@ -172,6 +158,14 @@ With these settings you get different results:
 "The Dark Knight (2008)"
 ```
 
+### Utility Scripts
+
+The package includes helpful diagnostic and maintenance scripts:
+
+- **`check-git-bash.ps1 -Fix`**: Auto-detects Git Bash installation and fixes configuration issues
+- **`clean-logs.ps1 -Compress`**: Compresses oversized log files while preserving important information
+- **`get-movie-ids.ps1`**: Lists all movies in your Radarr library for testing purposes
+
 ## Usage
 
 ### Bulk Processing (Process Entire Library)
@@ -189,7 +183,7 @@ With these settings you get different results:
 .\run.ps1 -Skip 50 -MaxMovies 25
 ```
 
-### Selective Processing (New in v1.1)
+### Selective Processing
 Target specific movies instead of processing everything:
 
 ```powershell
@@ -259,30 +253,39 @@ Both methods use the same logic, just different triggers.
 
 ## How It Works
 
-**Important**: v2.0 renames both **folders** AND **files** for complete library organization.
+**Important**: The script provides intelligent folder organization with optional file renaming capabilities.
 
 1. Reads your movie data from Radarr API
-2. Checks if movie is in your native language
-3. Gets the right title (original for native language, English for others)
-4. Builds folder name: `Collection (Year) - Title [Quality]`
-5. **Renames both the folder and files** for complete organization
-6. Moves all files (unchanged) to the new folder
-7. Updates Radarr database with new folder path
-8. Triggers Radarr to refresh and apply **its own file naming rules**
+2. Applies smart quality detection with precise TC/CAM pattern matching
+3. Checks if movie is in your native language preference
+4. Gets the appropriate title (original for native language, English for others)
+5. Builds intelligent folder name: `Collection (Year) - Title [Quality]`
+6. **Organizes folder structure** with configurable collection and quality options
+7. **Optionally renames files** using Radarr's native API (if enabled)
+8. Updates Radarr database with new folder path and triggers refresh
 
 **Example workflow**:
+
+**Folder Mode** (ENABLE_FILE_RENAMING=false):
 ```
 Before: Iron.Man.2008.1080p.BluRay.x264-GROUP/
         ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv
         └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt
 
 After:  Marvel Cinematic Universe (2008) - Iron Man [1080p]/
-        ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv  # Still original name
-        └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt  # Still original name
+        ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv  # Files keep original names
+        └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt  # Perfect for manual management
+```
 
-Radarr:  Marvel Cinematic Universe (2008) - Iron Man [1080p]/
-         ├── Iron Man (2008) [Bluray-1080p].mkv        # Renamed by Radarr
-         └── Iron Man (2008) [Bluray-1080p].en.srt     # Renamed by Radarr
+**File Renaming Mode** (ENABLE_FILE_RENAMING=true):
+```
+Before: Iron.Man.2008.1080p.BluRay.x264-GROUP/
+        ├── Iron.Man.2008.1080p.BluRay.x264-GROUP.mkv
+        └── Iron.Man.2008.1080p.BluRay.x264-GROUP.srt
+
+After:  Marvel Cinematic Universe (2008) - Iron Man [1080p]/
+        ├── Iron.Man.2008.1080p.h264.DTS.5.1-GROUP.mkv    # Renamed with MediaInfo
+        └── Iron.Man.2008.1080p.h264.DTS.5.1-GROUP.en.srt # Complete organization
 ```
 
 ## Language Examples
@@ -295,13 +298,16 @@ With `NATIVE_LANGUAGE=es`:
 ## File Structure
 
 ```
-├── config.env                  # Your configuration
-├── run.ps1                    # Bulk processing script
-├── rename-radarr-folders.bat  # Individual movie processing
-├── rename-radarr-folders.sh   # Main logic (bash)
-├── get-movie-ids.ps1          # List your movies for testing
-├── CHANGELOG.md               # Version history and release notes
-└── logs/                      # Detailed logs
+├── config.env                   # Your configuration
+├── run.ps1                     # Bulk processing script
+├── rename-radarr-folders.bat   # Individual movie processing (folders)
+├── rename-radarr-folders.sh    # Main folder logic (bash)
+├── rename-radarr-files.sh      # File renaming logic (bash)
+├── get-movie-ids.ps1           # List your movies for testing
+├── check-git-bash.ps1          # Diagnostic tool for Git Bash
+├── clean-logs.ps1              # Log management utility
+├── CHANGELOG.md                # Version history and release notes
+└── logs/                       # Detailed logs
 ```
 
 ## Radarr Integration (Auto-Rename)
@@ -327,6 +333,23 @@ This way new movies get organized automatically while you can bulk-process exist
 
 ## Troubleshooting
 
+### 🔧 Diagnostic Tools
+- **Diagnose Git Bash Issues**: `.\check-git-bash.ps1 -Fix` (auto-detects and fixes Git Bash configuration)
+- **Clean Oversized Logs**: `.\clean-logs.ps1 -Compress` (reduces log file sizes while preserving important info)
+
+### ⚡ Quick Fixes
+```powershell
+# See movies that need fixing without making changes
+.\run.ps1 -FilterPath "[Unknown]" -DryRun
+.\run.ps1 -FilterNoQuality -DryRun
+
+# Fix most common issues
+.\run.ps1 -FilterPath "[Unknown]"        # Fix folders with [Unknown] 
+.\run.ps1 -FilterNoQuality               # Fix movies without quality
+.\run.ps1 -DaysBack 7                    # Fix recent additions only
+```
+
+### Common Issues
 **"Git Bash not found"**: Install Git for Windows or update `GIT_BASH_PATH`
 
 **"API key invalid"**: Get your API key from Radarr Settings > General
@@ -371,89 +394,59 @@ Feel free to fork and adapt for your setup. The bash script (`rename-radarr-fold
 
 ## What Gets Changed
 
-### ✅ **What This Script Does**:
-- **Renames movie folders** with intelligent naming patterns
-- **Moves all files** (unchanged) to the new folder
+### ✅ **What This Script Always Does**:
+- **Renames movie folders** with intelligent naming patterns and quality detection
+- **Moves all files** to the new organized folder structure
 - **Updates Radarr's database** to point to new folder location
-- **Triggers Radarr refresh** so it can apply its own file naming rules
+- **Triggers Radarr refresh** to detect files in new location
+- **Smart logging** with configurable verbosity levels
 
-### ❌ **What This Script Does NOT Do**:
-- Rename individual video files (`.mkv`, `.mp4`, etc.)
-- Rename subtitle files (`.srt`, `.ass`, etc.) 
+### 🔧 **What This Script Can Do** (if enabled):
+- **Rename movie files** using Radarr's native API (`ENABLE_FILE_RENAMING=true`)
+- **Apply Radarr naming patterns** to individual video and subtitle files
+- **Extract MediaInfo details** for enhanced file naming
+
+### ❌ **What This Script Never Does**:
 - Rename or delete extra files (`RARBG.txt`, `sample.mkv`, etc.)
-- Modify video file content or metadata
+- Modify video file content, metadata, or quality
 - Change Radarr settings or configuration
 - Delete anything from your system
+- Process files outside of Radarr's library
 
 ### 🔄 **The Complete Process**:
+
+**Folder Mode** (default):
 1. **This script**: `Random.Movie.2023.x264-GROUP/` → `Action Collection (2023) - Movie Title [1080p]/`
 2. **Files moved unchanged**: All `.mkv`, `.srt`, `.nfo` files keep original names
 3. **Radarr triggered**: Receives refresh command and detects files in new location
-4. **Radarr renames files**: Applies your file naming rules automatically
 
-**Result**: Perfect folder organization + Radarr's file naming = Complete library organization
+**File Renaming Mode** (if enabled):
+1. **Folders organized**: Same intelligent folder structure as above
+2. **Files renamed**: Uses Radarr's API to rename files with proper patterns
+3. **MediaInfo extracted**: Video/audio codec and quality details included in filenames
 
-## Common Use Cases (v1.1)
+**Result**: Perfect folder organization + optional comprehensive file naming = Complete library organization
 
-### 🚀 **Getting Started**
-```powershell
-# First time setup - see what would change
-.\run.ps1 -MaxMovies 10 -DryRun
+## Common Workflows
 
-# Test with a small batch
-.\run.ps1 -MaxMovies 5
-```
+### 📚 **Library Migration**
+When moving from unorganized to organized structure:
+1. **Test first**: Use `-DryRun` with a small subset
+2. **Process by quality**: Start with high-quality files (`-FilterPath "1080p"`)
+3. **Handle problematic movies**: Fix `[Unknown]` and missing quality tags
+4. **Collections last**: Process collection-based movies after individual titles are clean
 
-### 🔧 **Fix Specific Problems**
-```powershell
-# Fix movies Radarr couldn't identify properly
-.\run.ps1 -FilterPath "[Unknown]"
+### 🔄 **Ongoing Maintenance** 
+For libraries that are mostly organized:
+- **Weekly**: Process recent additions (`-DaysBack 7`)
+- **Monthly**: Clean up download folders (`-FilterPath "downloads"`)
+- **As needed**: Fix specific collections or quality issues
 
-# Fix movies without quality tags
-.\run.ps1 -FilterNoQuality
-
-# Fix movies in download/temp folders
-.\run.ps1 -FilterPath "downloads"
-.\run.ps1 -FilterPath "temp"
-```
-
-### 📅 **Maintenance Tasks**
-```powershell
-# Weekly cleanup - new additions only
-.\run.ps1 -DaysBack 7
-
-# Monthly check - recent movies without quality
-.\run.ps1 -DaysBack 30 -FilterNoQuality
-
-# Fix specific collection issues
-.\run.ps1 -SearchTitle "Marvel" -DryRun
-```
-
-### 🎯 **Targeted Processing**
-```powershell
-# Work on specific quality tiers
-.\run.ps1 -FilterPath "720p" -MaxMovies 50
-.\run.ps1 -FilterPath "4K"
-
-# Fix movies from specific years
-.\run.ps1 -FilterPath "2023"
-.\run.ps1 -FilterPath "2024"
-
-# Process specific collections gradually
-.\run.ps1 -SearchTitle "Harry Potter" -DryRun
-.\run.ps1 -SearchTitle "Star Wars" -MaxMovies 20
-```
-
-### 🔄 **Bulk Operations**
-```powershell
-# Full library organization (use after testing!)
-.\run.ps1
-
-# Large library - process in chunks
-.\run.ps1 -MaxMovies 100
-.\run.ps1 -Skip 100 -MaxMovies 100    # Next 100
-.\run.ps1 -Skip 200 -MaxMovies 100    # Next 100, etc.
-```
+### 🎯 **Selective Organization**
+For large libraries (1000+ movies):
+- **Process in chunks**: Use `-MaxMovies` and `-Skip` for manageable batches
+- **Target specific issues**: Focus on movies with quality problems first
+- **Collection by collection**: Organize Marvel, DC, Star Wars separately for better control
 
 ## Credits
 
