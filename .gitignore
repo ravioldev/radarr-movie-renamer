@@ -1,0 +1,38 @@
+# Personal configuration files
+config-raviol.env
+configD.env
+*-personal.env
+*.local.env
+
+# Log files
+*.log
+logs/
+*.tmp
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Release files
+/releases
+releases/
