@@ -7,6 +7,8 @@ param(
     [int]$Skip = 0,             # Number of movies to skip from the beginning (useful for resuming interrupted processes)
     [string]$FilterPath = "",   # Filter movies with this text in path (e.g., "[Unknown]", "temp", etc.)
     [switch]$FilterNoQuality,   # Filter movies without quality defined
+    [switch]$FilterMissing,     # Filter movies that are missing from disk (registered in Radarr but files don't exist)
+    [switch]$IncludeWithoutFiles, # Include movies without files (by default only movies with files are processed)
     [int]$DaysBack = 0,         # Filter movies added/modified in last N days (0 = disabled)
     [switch]$DryRun,            # Show what would be processed without executing
     [string]$SearchTitle = ""   # Filter by title containing this text
@@ -108,6 +110,8 @@ if ($scriptsDir) {
 $filtersApplied = @()
 if ($FilterPath) { $filtersApplied += "Path contains: '$FilterPath'" }
 if ($FilterNoQuality) { $filtersApplied += "Movies without quality defined" }
+if ($FilterMissing) { $filtersApplied += "Movies missing from disk" }
+if ($IncludeWithoutFiles) { $filtersApplied += "Including movies without files" }
 if ($DaysBack -gt 0) { $filtersApplied += "Movies from last $DaysBack days" }
 if ($SearchTitle) { $filtersApplied += "Title contains: '$SearchTitle'" }
 
@@ -131,8 +135,16 @@ try {
     $allMovies = Invoke-RestMethod -Headers @{ 'X-Api-Key' = $apiKey } -Uri "$radarr/api/v3/movie"
     Write-Host "`n📊 Retrieved $($allMovies.Count) total movies from Radarr" -ForegroundColor Green
     
-    # Apply filters first
-    $filteredMovies = $allMovies
+    # Filter to only movies that actually have files (unless explicitly including movies without files)
+    if ($IncludeWithoutFiles) {
+        $filteredMovies = $allMovies
+        Write-Host "📁 Processing all movies (including those without files): $($allMovies.Count)" -ForegroundColor Yellow
+    } else {
+        $moviesWithFiles = $allMovies | Where-Object { $_.hasFile -eq $true }
+        Write-Host "📁 Movies with files: $($moviesWithFiles.Count)" -ForegroundColor Green
+        Write-Host "❌ Movies without files (skipped): $($allMovies.Count - $moviesWithFiles.Count)" -ForegroundColor Yellow
+        $filteredMovies = $moviesWithFiles
+    }
     
     # Filter by search title if provided
     if ($SearchTitle) {
@@ -159,6 +171,31 @@ try {
             [string]::IsNullOrEmpty($_.movieFile.quality.quality.name)
         }
         Write-Host "🔍 After 'no quality' filter: $($filteredMovies.Count) movies" -ForegroundColor Cyan
+    }
+    
+    # Filter movies that are missing from disk
+    if ($FilterMissing) {
+        $filteredMovies = $filteredMovies | Where-Object { 
+            # Level 1: Radarr knows there's no file
+            if (!$_.hasFile) { 
+                return $true 
+            }
+            
+            # Level 2: Movie directory doesn't exist
+            if ($_.path -and !(Test-Path $_.path)) { 
+                return $true 
+            }
+            
+            # Level 3: Radarr thinks file exists but it's actually missing
+            if ($_.hasFile -and $_.movieFile -and $_.movieFile.path) {
+                if (!(Test-Path $_.movieFile.path)) { 
+                    return $true 
+                }
+            }
+            
+            return $false
+        }
+        Write-Host "🔍 After 'missing from disk' filter: $($filteredMovies.Count) movies" -ForegroundColor Cyan
     }
     
     # Filter movies added/modified recently
@@ -282,7 +319,8 @@ try {
             "radarr_movie_id=$($m.id)",
             "radarr_movie_title=`"$movieTitle`"",
             "radarr_movie_year=$($m.year)",
-            "radarr_moviefile_quality=`"$qual`""
+            "radarr_moviefile_quality=`"$qual`"",
+            "radarr_movie_path=`"$($m.path)`""
         )
         
         try {

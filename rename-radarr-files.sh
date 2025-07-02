@@ -13,37 +13,25 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ───────────── 1. Setup & Configuration ──────────────────────────────────────
+# Configure UTF-8 encoding for Windows compatibility
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+
+# Detect if running in PowerShell and improve output
+if [[ "${TERM_PROGRAM:-}" == "vscode" ]] || [[ -n "${PSModulePath:-}" ]]; then
+  # Running in PowerShell or VS Code - UTF-8 should work better
+  export PYTHONIOENCODING=utf-8
+fi
+
 set -euo pipefail
 
 # Get script directory for configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
 
-# Load configuration with proper path handling
+# Load configuration (same as rename-radarr-folders.sh)
 if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
-  
-  # Clean up quotes using parameter expansion (preserves backslashes)
-  SCRIPTS_DIR="${SCRIPTS_DIR%\"}"
-  SCRIPTS_DIR="${SCRIPTS_DIR#\"}"
-  SCRIPTS_DIR="${SCRIPTS_DIR%\'}"
-  SCRIPTS_DIR="${SCRIPTS_DIR#\'}"
-  
-  GIT_BASH_PATH="${GIT_BASH_PATH%\"}"
-  GIT_BASH_PATH="${GIT_BASH_PATH#\"}"
-  GIT_BASH_PATH="${GIT_BASH_PATH%\'}"
-  GIT_BASH_PATH="${GIT_BASH_PATH#\'}"
-  
-  LOG_FILE="${LOG_FILE%\"}"
-  LOG_FILE="${LOG_FILE#\"}"
-  LOG_FILE="${LOG_FILE%\'}"
-  LOG_FILE="${LOG_FILE#\'}"
-  
-  RENAME_SH_PATH="${RENAME_SH_PATH%\"}"
-  RENAME_SH_PATH="${RENAME_SH_PATH#\"}"
-  RENAME_SH_PATH="${RENAME_SH_PATH%\'}"
-  RENAME_SH_PATH="${RENAME_SH_PATH#\'}"
-  
 else
   echo "❌ Configuration file not found: $CONFIG_FILE"
   exit 1
@@ -60,43 +48,113 @@ fi
 MOVIE_ID="$1"
 MOVIE_DIR="$2"
 
-# ───────────── 2. Logging Function ────────────────────────────────────────────
-# Set UTF-8 encoding for proper emoji display
-export LC_ALL=en_US.UTF-8
-export LANG=en_US.UTF-8
+# ───────────── 2.5. Clean up quotes ──────────────────────────────────────────
+# Remove extra quotes that may have been added during script invocation
+# This handles cases where paths arrive as ''P:path'' instead of P:path
+MOVIE_DIR="${MOVIE_DIR#\"}"  # Remove leading quote if present
+MOVIE_DIR="${MOVIE_DIR%\"}"  # Remove trailing quote if present
+MOVIE_DIR="${MOVIE_DIR#\'}"  # Remove leading single quote if present  
+MOVIE_DIR="${MOVIE_DIR%\'}"  # Remove trailing single quote if present
 
-log() {
-  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$timestamp] $*"
+# ───────────── 2. Logging Function ────────────────────────────────────────────
+# Enhanced logging function with Windows emoji compatibility
+log() { 
+  local message="$*"
   
-  # IMPROVED: Safe logging without flock (Windows compatible) - fixes "Device or resource busy"
-  if [[ -n "${LOG_FILE:-}" ]]; then
-    # Create a more robust log file path - fix common Windows path issues
-    local safe_log_file="$LOG_FILE"
-    if [[ "$LOG_FILE" == D:* ]] && [[ "$LOG_FILE" != *"\\"* ]]; then
-      # Fix malformed paths like D:scriptsradarr-renamerlogsrename-radarr-folders.log
-      safe_log_file=$(echo "$LOG_FILE" | sed 's|D:scriptsradarr-renamerlogsrename-radarr-folders.log|D:\\scripts\\radarr-renamer\\logs\\rename-radarr-folders.log|g')
-    fi
+  # Replace problematic emojis with Windows-compatible versions
+  message="${message//🎬/[MOVIE]}"
+  message="${message//📁/[FOLDER]}"
+  message="${message//🔧/[CONFIG]}"
+  message="${message//✅/[OK]}"
+  message="${message//❌/[ERROR]}"
+  message="${message//⚠️/[WARN]}"
+  message="${message//🔍/[DEBUG]}"
+  message="${message//🐛/[DEBUG]}"
+  message="${message//🔄/[CONVERT]}"
+  message="${message//📋/[INFO]}"
+  message="${message//🌍/[WEB]}"
+  message="${message//🎭/[TITLE]}"
+  message="${message//📄/[FILE]}"
+  message="${message//🔥/[API]}"
+  message="${message//ℹ️/[INFO]}"
+  message="${message//📊/[SUMMARY]}"
+  message="${message//🎯/[TARGET]}"
+  message="${message//🔬/[ANALYSIS]}"
+  message="${message//🚀/[START]}"
+  message="${message//🧪/[TEST]}"
+  message="${message//📹/[VIDEO]}"
+  message="${message//🎊/[SUCCESS]}"
+  message="${message//✨/[COMPLETE]}"
+  message="${message//🚨/[ALERT]}"
+  message="${message//💡/[TIP]}"
+  message="${message//🏗️/[BUILD]}"
+  message="${message//⚙️/[SETTINGS]}"
+  message="${message//📥/[DOWNLOAD]}"
+  message="${message//🎉/[PARTY]}"
+  message="${message//📝/[MEMO]}"
+  message="${message//🔄/[REFRESH]}"
+  message="${message//📡/[SIGNAL]}"
+  message="${message//🌐/[GLOBAL]}"
+  
+  # Always log errors, warnings, and important messages (MINIMAL level and above)
+  printf '[%s] %s\n' "$(date +'%F %T')" "$message" >&2; 
+}
+
+# ───────────── 2.5. Path Conversion Function ──────────────────────────────────
+# Convert Windows paths to Unix format for Git Bash compatibility
+convert_windows_path_to_unix() {
+  local path="$1"
+  local unix_path=""
+  
+  # Check if this looks like a Windows path (starts with drive letter and colon)
+  if [[ "$path" == [A-Za-z]:* ]]; then
+    # Extract drive letter and convert to lowercase
+    local drive_letter=$(echo "${path:0:1}" | tr '[:upper:]' '[:lower:]')
+    # Get path after drive letter and colon, replace backslashes with forward slashes
+    local path_part="${path:2}"
+    path_part="${path_part//\\//}"
+    # Build Unix-style path: /c/path/to/file (note the / between drive and path)
+    unix_path="/${drive_letter}/${path_part}"
     
-    # Create log directory with Windows-compatible path
-    local log_dir=$(dirname "$safe_log_file" 2>/dev/null)
-    if [[ -n "$log_dir" ]] && [[ ! -d "$log_dir" ]]; then
-      mkdir -p "$log_dir" 2>/dev/null || true
-    fi
-    
-    # Use multiple logging strategies to avoid "Device or resource busy"
-    {
-      # Strategy 1: Try normal append
-      echo "[$timestamp] $*" >> "$safe_log_file" 2>/dev/null || {
-        # Strategy 2: Try redirect
-        echo "[$timestamp] $*" > "$safe_log_file" 2>/dev/null || {
-          # Strategy 3: Silent failure
-          true
-        }
-      }
-    }
+    log "🔄 Converted Windows path: '$path' → '$unix_path'"
+    echo "$unix_path"
+  else
+    # Not a Windows path, return as-is
+    echo "$path"
   fi
 }
+
+# ───────────── 3. Path Processing ─────────────────────────────────────────────
+# Apply Windows path conversion if needed for Git Bash compatibility
+log "🐛 DEBUG: Path processing check..."
+log "   MOVIE_DIR value: '$MOVIE_DIR'"
+log "   MOVIE_DIR length: ${#MOVIE_DIR}"
+log "   First 3 chars: '${MOVIE_DIR:0:3}'"
+log "   Pattern test result: $([[ "$MOVIE_DIR" == [A-Za-z]:* ]] && echo "MATCHES" || echo "NO_MATCH")"
+log "   Directory exists: $([[ -d "$MOVIE_DIR" ]] && echo "YES" || echo "NO")"
+
+if [[ "$MOVIE_DIR" == [A-Za-z]:* ]] && [[ ! -d "$MOVIE_DIR" ]]; then
+  log "🔍 Windows path detected, attempting conversion for Git Bash..."
+  CONVERTED_MOVIE_DIR=$(convert_windows_path_to_unix "$MOVIE_DIR")
+  
+  # Test if converted path exists
+  if [[ -d "$CONVERTED_MOVIE_DIR" ]]; then
+    log "✅ Converted path exists: '$CONVERTED_MOVIE_DIR'"
+    MOVIE_DIR="$CONVERTED_MOVIE_DIR"
+  else
+    log "⚠️  Both original and converted paths do not exist"
+    log "   Original: '$MOVIE_DIR'"
+    log "   Converted: '$CONVERTED_MOVIE_DIR'"
+  fi
+else
+  log "🐛 DEBUG: Conversion conditions not met"
+  if [[ ! "$MOVIE_DIR" == [A-Za-z]:* ]]; then
+    log "   Reason: Path does not match Windows pattern ([A-Za-z]:*)"
+  fi
+  if [[ -d "$MOVIE_DIR" ]]; then
+    log "   Reason: Directory already exists"
+  fi
+fi
 
 # Enhanced logging functions with level control (copied from main script)
 log_info() {
@@ -136,51 +194,56 @@ log "🔧 Using hybrid approach: API data + manual processing"
 set +e  # Don't exit on every error
 trap 'log "⚠️  Error occurred at line $LINENO (exit code $?) - continuing..." 2>/dev/null || true' ERR
 
-# Validate inputs
-if [[ ! -d "$MOVIE_DIR" ]]; then
-  log "❌ Movie directory does not exist: $MOVIE_DIR"
-  exit 1
-fi
+# Enhanced input validation with path debugging
+log "🔍 Validating inputs..."
+log "   Movie ID: '$MOVIE_ID'"
+log "   Movie Dir: '$MOVIE_DIR'"
+log "   Movie Dir length: ${#MOVIE_DIR} characters"
 
+# Validate movie ID
 if [[ ! "$MOVIE_ID" =~ ^[0-9]+$ ]]; then
   log "❌ Invalid movie ID (must be numeric): $MOVIE_ID"
   exit 1
 fi
 
-# Debug: Show cleaned paths with proper escaping
-log "🔧 Configuration paths after cleanup:"
-log "   SCRIPTS_DIR: \"${SCRIPTS_DIR:-'(not set)'}\""
-log "   GIT_BASH_PATH: \"${GIT_BASH_PATH:-'(not set)'}\""
-log "   LOG_FILE: \"${LOG_FILE:-'(not set)'}\""
-
-# Critical validation: Check and fix malformed paths (missing backslashes)
-if [[ "$SCRIPTS_DIR" != *"\\"* ]] && [[ "$SCRIPTS_DIR" == *":"* ]]; then
-  log "🔧 FIXING malformed SCRIPTS_DIR (missing backslashes)"
-  # Try to reconstruct the path by adding backslashes
-  SCRIPTS_DIR=$(echo "$SCRIPTS_DIR" | sed 's|:|:\\|; s|scriptsradarr-renamer|scripts\\radarr-renamer|')
-  log "   Fixed SCRIPTS_DIR: \"$SCRIPTS_DIR\""
+# Enhanced directory validation with detailed debugging
+if [[ ! -d "$MOVIE_DIR" ]]; then
+  log "❌ Movie directory does not exist: $MOVIE_DIR"
+  log "🔍 Directory path debugging:"
+  log "   Raw path: '$MOVIE_DIR'"
+  log "   Length: ${#MOVIE_DIR} characters"
+  log "   First 10 chars: '${MOVIE_DIR:0:10}'"
+  if [[ ${#MOVIE_DIR} -gt 10 ]]; then
+    log "   Last 10 chars: '${MOVIE_DIR: -10}'"
+  fi
+  
+  # Check for common path corruption issues
+  if [[ "$MOVIE_DIR" == *":"* && "$MOVIE_DIR" != *"\\"* && "$MOVIE_DIR" != *"/"* ]]; then
+    log "🚨 DETECTED: Missing path separators after drive letter"
+    log "   Expected: 'P:\\Unknown (2011) [1080p]'"
+    log "   Received: '$MOVIE_DIR'"
+  fi
+  
+  # Check if parent directories exist (useful for debugging)
+  if [[ "$MOVIE_DIR" == *"\\"* ]]; then
+    PARENT_DIR=$(dirname "$MOVIE_DIR" 2>/dev/null || echo "")
+    if [[ -n "$PARENT_DIR" && -d "$PARENT_DIR" ]]; then
+      log "   Parent directory exists: '$PARENT_DIR'"
+    else
+      log "   Parent directory also missing: '$PARENT_DIR'"
+    fi
+  fi
+  
+  exit 1
 fi
 
-if [[ "$LOG_FILE" != *"\\"* ]] && [[ "$LOG_FILE" == *":"* ]]; then
-  log "🔧 FIXING malformed LOG_FILE (missing backslashes)"
-  # Reconstruct the log file path
-  LOG_FILE=$(echo "$LOG_FILE" | sed 's|:|:\\|; s|scriptsradarr-renamerlogsrename-radarr-folders.log|scripts\\radarr-renamer\\logs\\rename-radarr-folders.log|')
-  log "   Fixed LOG_FILE: \"$LOG_FILE\""
-fi
+log "✅ Input validation passed"
 
-if [[ "$GIT_BASH_PATH" != *"\\"* ]] && [[ "$GIT_BASH_PATH" == *":"* ]]; then
-  log "🔧 FIXING malformed GIT_BASH_PATH (missing backslashes)"
-  # Reconstruct the git bash path
-  GIT_BASH_PATH=$(echo "$GIT_BASH_PATH" | sed 's|:|:\\|; s|Program FilesGitbinbash.exe|Program Files\\Git\\bin\\bash.exe|')
-  log "   Fixed GIT_BASH_PATH: \"$GIT_BASH_PATH\""
-fi
-
-# Additional debug: Check if backslashes are preserved
-if [[ "$SCRIPTS_DIR" == *"\\"* ]]; then
-  log "✅ Backslashes preserved in SCRIPTS_DIR"
-else
-  log "❌ Backslashes still missing in SCRIPTS_DIR - raw value: '$SCRIPTS_DIR'"
-fi
+# Debug: Show configuration paths
+log_debug "🔧 Configuration paths loaded:"
+log_debug "   SCRIPTS_DIR: \"${SCRIPTS_DIR:-'(not set)'}\""
+log_debug "   GIT_BASH_PATH: \"${GIT_BASH_PATH:-'(not set)'}\""
+log_debug "   LOG_FILE: \"${LOG_FILE:-'(not set)'}\""
 
 # ───────────── 3. Fetch Complete Movie Data from Radarr ───────────────────────
 log "📥 Fetching complete movie data from Radarr API..."
@@ -234,8 +297,17 @@ fi
 # ───────────── 4. Get Naming Configuration ────────────────────────────────────
 log "⚙️  Fetching Radarr naming configuration..."
 
-# Use custom pattern if provided, otherwise get from Radarr
-if [[ -n "${FILE_NAMING_PATTERN:-}" ]]; then
+# DEBUG: Show configuration variables
+log "🐛 DEBUG: Configuration check..."
+log "   FILE_NAMING_PATTERN value: '${FILE_NAMING_PATTERN:-UNSET}'"
+log "   FILE_NAMING_PATTERN length: ${#FILE_NAMING_PATTERN}"
+log "   ENABLE_FILE_RENAMING: '${ENABLE_FILE_RENAMING:-UNSET}'"
+
+# Force custom pattern when ENABLE_FILE_RENAMING=true
+if [[ "${ENABLE_FILE_RENAMING:-false}" == "true" ]]; then
+  NAMING_PATTERN="$FILE_NAMING_PATTERN"
+  log "🔧 FORCED custom naming pattern: $NAMING_PATTERN"
+elif [[ -n "${FILE_NAMING_PATTERN:-}" ]]; then
   NAMING_PATTERN="$FILE_NAMING_PATTERN"
   log "🔧 Using custom naming pattern: $NAMING_PATTERN"
 else
@@ -263,6 +335,8 @@ log "🔍 Extracting all token values from Radarr data..."
 
 # Initialize associative array for token values
 declare -A TOKEN_VALUES
+
+log "✅ CHECKPOINT 1: Token array initialized"
 
 # Basic movie information - CORRECT token names
 TOKEN_VALUES["Movie.Title"]=$(echo "$MOVIE_JSON" | jq -r '.title // ""')
@@ -294,12 +368,28 @@ TOKEN_VALUES["Release.Year"]=$(echo "$MOVIE_JSON" | jq -r '.year // ""')
 TOKEN_VALUES["ImdbId"]=$(echo "$MOVIE_JSON" | jq -r '.imdbId // ""')
 TOKEN_VALUES["TmdbId"]=$(echo "$MOVIE_JSON" | jq -r '.tmdbId // ""')
 
+log "✅ CHECKPOINT 2: Basic movie tokens extracted"
+
 # Movie file information - with SDTV correction logic
+log "🔍 CHECKPOINT 2.1: Starting quality extraction..."
 RAW_QUALITY=$(echo "$MOVIE_JSON" | jq -r '.movieFile.quality.quality.name // ""')
+log "🔍 CHECKPOINT 2.2: RAW_QUALITY extracted: '$RAW_QUALITY'"
+
 RAW_RESOLUTION=$(echo "$MOVIE_JSON" | jq -r '.movieFile.quality.quality.resolution // ""')
+log "🔍 CHECKPOINT 2.3: RAW_RESOLUTION extracted: '$RAW_RESOLUTION'"
 
 # First get original filename (needed for SDTV correction)
-ORIGINAL_FILENAME=$(echo "$MOVIE_JSON" | jq -r '.movieFile.relativePath // ""' | xargs basename 2>/dev/null | sed 's/\.[^.]*$//')
+log "🔍 CHECKPOINT 2.4: Starting filename extraction..."
+RELATIVE_PATH=$(echo "$MOVIE_JSON" | jq -r '.movieFile.relativePath // ""')
+log "🔍 CHECKPOINT 2.5: RELATIVE_PATH extracted: '$RELATIVE_PATH'"
+
+# Use basename safely without xargs to avoid issues
+if [[ -n "$RELATIVE_PATH" ]]; then
+  ORIGINAL_FILENAME=$(basename "$RELATIVE_PATH" 2>/dev/null | sed 's/\.[^.]*$//')
+else
+  ORIGINAL_FILENAME=""
+fi
+log "🔍 CHECKPOINT 2.6: ORIGINAL_FILENAME processed: '$ORIGINAL_FILENAME'"
 
 # Enhanced Quality Logic for Files
 # Files can combine resolution + source (e.g., "720p-SCREENER", "480p-SDTV")
@@ -376,6 +466,8 @@ log "   📋 Final file quality: $FINAL_QUALITY"
 TOKEN_VALUES["Source"]="$RAW_SOURCE"
 TOKEN_VALUES["Resolution"]="$RAW_RESOLUTION"
 
+log "✅ CHECKPOINT 3: Quality tokens extracted"
+
 # MediaInfo tokens
 TOKEN_VALUES["MediaInfo.Simple"]=$(echo "$MOVIE_JSON" | jq -r '.movieFile.mediaInfo.videoCodec // ""')
 TOKEN_VALUES["MediaInfo.VideoCodec"]=$(echo "$MOVIE_JSON" | jq -r '.movieFile.mediaInfo.videoCodec // ""')
@@ -441,6 +533,8 @@ log "   Length: ${#mediainfo_full}"
 log "   Contains spaces: $(if [[ "$mediainfo_full" == *" "* ]]; then echo "YES"; else echo "NO"; fi)"
 log "   Character by character: $(for ((i=0; i<${#mediainfo_full}; i++)); do echo -n "'${mediainfo_full:$i:1}' "; done)"
 
+log "✅ CHECKPOINT 4: MediaInfo tokens extracted"
+
 # Release information - FIXED: Use both formats for compatibility
 RELEASE_GROUP=$(echo "$MOVIE_JSON" | jq -r '.movieFile.releaseGroup // ""')
 TOKEN_VALUES["Release.Group"]="$RELEASE_GROUP"       # For patterns like {.Release.Group}
@@ -478,124 +572,212 @@ fi
 TOKEN_VALUES["Custom.Formats"]="$custom_formats"
 TOKEN_VALUES["Custom Formats"]="$custom_formats"     # Alternative format
 
+log "✅ CHECKPOINT 5: Custom formats and release info extracted"
+
 # Original naming
 TOKEN_VALUES["Original.Title"]=$(echo "$MOVIE_JSON" | jq -r '.movieFile.sceneName // ""')
 TOKEN_VALUES["Original.Filename"]="$ORIGINAL_FILENAME"
 
-# Debug: Log all extracted values
-log "📋 Extracted token values:"
+# Log extracted values - detailed level for troubleshooting
+log_info "📋 Extracted token values"
+log_debug "🔍 DEBUG: About to iterate through TOKEN_VALUES array..."
+log_debug "   Array size: ${#TOKEN_VALUES[@]}"
+
+# SAFETY: Protect against crash in array iteration
+set +e  # Temporarily disable exit on error
+token_count=0
 for token in "${!TOKEN_VALUES[@]}"; do
-  value="${TOKEN_VALUES[$token]}"
-  [[ -n "$value" ]] && log "   {$token}: $value"
+  token_count=$((token_count + 1))
+  log_debug "🔍 Processing token #$token_count: '$token'"
+  
+  if [[ $token_count -gt 100 ]]; then
+    log "❌ Too many tokens - breaking to prevent infinite loop"
+    break
+  fi
+  
+  value="${TOKEN_VALUES[$token]:-}"
+  if [[ -n "$value" ]]; then
+    log_debug "   {$token}: $value"
+  fi
 done
+set -e  # Re-enable exit on error
+
+log_detailed "✅ CHECKPOINT 6: Token iteration completed"
+log_info "✅ Token values extraction completed successfully"
 
 # SPECIFIC DEBUG for problematic tokens mentioned by user
-log "🔍 SPECIFIC TOKEN DEBUG for user's pattern:"
-log "   Pattern contains: {.MediaInfo Full:ES}{.Custom.Formats}{-Release Group}"
+log_debug "🔍 SPECIFIC TOKEN DEBUG for user's pattern:"
+log_debug "   Pattern contains: {.MediaInfo Full:ES}{.Custom.Formats}{-Release Group}"
 
-# Check MediaInfo Full
+# Check MediaInfo Full with crash protection
+log_debug "🔍 Checking MediaInfo.Full token..."
+set +e  # Temporarily disable exit on error
 mediainfo_full_value="${TOKEN_VALUES["MediaInfo.Full"]:-}"
 if [[ -n "$mediainfo_full_value" ]]; then
-  log "   ✅ MediaInfo.Full has value: '$mediainfo_full_value'"
+  log_debug "   ✅ MediaInfo.Full has value: '$mediainfo_full_value'"
 else
-  log "   ❌ MediaInfo.Full is EMPTY - will not appear in filename"
+  log_debug "   ❌ MediaInfo.Full is EMPTY - will not appear in filename"
 fi
+set -e  # Re-enable exit on error
 
-# Check Custom Formats
+# Check Custom Formats with crash protection
+log_debug "🔍 Checking Custom.Formats token..."
+set +e  # Temporarily disable exit on error
 custom_formats_value="${TOKEN_VALUES["Custom.Formats"]:-}"
 if [[ -n "$custom_formats_value" ]]; then
-  log_custom_formats "   ✅ Custom.Formats has value: '$custom_formats_value'"
+  log_debug "   ✅ Custom.Formats has value: '$custom_formats_value'"
 else
-  log_custom_formats "   ❌ Custom.Formats is EMPTY - will not appear in filename"
+  log_debug "   ❌ Custom.Formats is EMPTY - will not appear in filename"
 fi
+set -e  # Re-enable exit on error
 
-# Check Release Group
+# Check Release Group with crash protection
+log_debug "🔍 Checking Release Group tokens..."
+set +e  # Temporarily disable exit on error
 release_group_dot="${TOKEN_VALUES["Release.Group"]:-}"
 release_group_space="${TOKEN_VALUES["Release Group"]:-}"
 if [[ -n "$release_group_dot" ]] || [[ -n "$release_group_space" ]]; then
-  log "   ✅ Release Group has value:"
-  [[ -n "$release_group_dot" ]] && log "      Release.Group: '$release_group_dot'"
-  [[ -n "$release_group_space" ]] && log "      Release Group: '$release_group_space'"
+  log_debug "   ✅ Release Group has value:"
+  [[ -n "$release_group_dot" ]] && log_debug "      Release.Group: '$release_group_dot'"
+  [[ -n "$release_group_space" ]] && log_debug "      Release Group: '$release_group_space'"
 else
-  log "   ❌ Release Group is EMPTY - will not appear in filename"
-  log "      File may not have release group info in Radarr"
+  log_debug "   ❌ Release Group is EMPTY - will not appear in filename"
+  log_debug "      File may not have release group info in Radarr"
 fi
+set -e  # Re-enable exit on error
+
+log_detailed "✅ CHECKPOINT 7: Specific token debugging completed"
+log_debug "✅ Specific token debugging completed"
 
 # ───────────── 6. Process Naming Pattern with Token Replacement ───────────────
-log "🔧 Processing naming pattern with token replacement..."
+log_debug "🚀 CHECKPOINT: About to start token processing section"
+log_debug "   Available memory: $(free -m 2>/dev/null | grep '^Mem:' | awk '{print $7}' || echo 'unknown') MB"
+log_debug "   Current directory: $(pwd)"
+log_debug "   Script PID: $$"
 
-# ═══════════════ FIXED TOKEN PROCESSOR (NO DEBUG LOGS) ═══════════════
+log_info "🔧 Processing naming pattern with token replacement..."
+
+# ═══════════════ SIMPLIFIED TOKEN PROCESSOR ═══════════════
 process_filename_tokens() {
   local pattern="$1"
   local result="$pattern"
   
-  # FIRST: Handle special MediaInfo Full with language code
-  while [[ "$result" =~ \{\.MediaInfo[[:space:]]+Full:([^}]+)\} ]]; do
-    local full_match="${BASH_REMATCH[0]}"
-    local token_value="${TOKEN_VALUES["MediaInfo.Full"]:-}"
+  log_debug "🔧 SIMPLIFIED token processing started..."
+  log_debug "   Input: '$pattern'"
+  
+  # Simple approach: Replace each token one by one without complex regex
+  for token_name in "${!TOKEN_VALUES[@]}"; do
+    local token_value="${TOKEN_VALUES[$token_name]}"
+    log_debug "   Processing token: '$token_name' → '$token_value'"
+    
+    # Handle different token formats
     if [[ -n "$token_value" ]]; then
-      result="${result/$full_match/ $token_value}"
+      # Simple token: {TokenName}
+      result="${result//\{$token_name\}/$token_value}"
+      
+      # Dash token: {-TokenName}
+      result="${result//\{-$token_name\}/-$token_value}"
+      
+      # Dot token: {.TokenName}
+      result="${result//\{.$token_name\}/.$token_value}"
+      
+      # Special MediaInfo Full token with language code
+      if [[ "$token_name" == "MediaInfo.Full" ]]; then
+        result="${result//\{.MediaInfo Full:ES\}/ $token_value}"
+        result="${result//\{.MediaInfo Full:EN\}/ $token_value}"
+        result="${result//\{.MediaInfo Full:*\}/ $token_value}"
+      fi
     else
-      result="${result/$full_match/}"
+      # Remove empty tokens
+      result="${result//\{$token_name\}/}"
+      result="${result//\{-$token_name\}/}"
+      result="${result//\{.$token_name\}/}"
+      if [[ "$token_name" == "MediaInfo.Full" ]]; then
+        result="${result//\{.MediaInfo Full:ES\}/}"
+        result="${result//\{.MediaInfo Full:EN\}/}"
+        result="${result//\{.MediaInfo Full:*\}/}"
+      fi
     fi
   done
   
-  # Handle conditional tokens with dashes
-  while [[ "$result" =~ \{-([^}]+)\} ]]; do
-    local full_match="${BASH_REMATCH[0]}"
-    local token_name="${BASH_REMATCH[1]}"
-    local token_value="${TOKEN_VALUES[$token_name]:-}"
-    if [[ -n "$token_value" ]]; then
-      result="${result/$full_match/-$token_value}"
-    else
-      result="${result/$full_match/}"
-    fi
-  done
+  log_debug "🔧 After token replacement: '$result'"
   
-  # Handle conditional tokens with dots
-  while [[ "$result" =~ \{\.([^}]+)\} ]]; do
-    local full_match="${BASH_REMATCH[0]}"
-    local token_name="${BASH_REMATCH[1]}"
-    local token_value="${TOKEN_VALUES[$token_name]:-}"
-    if [[ -n "$token_value" ]]; then
-      result="${result/$full_match/.$token_value}"
-    else
-      result="${result/$full_match/}"
-    fi
-  done
-  
-  # Handle simple tokens
-  for token in "${!TOKEN_VALUES[@]}"; do
-    local value="${TOKEN_VALUES[$token]}"
-    if [[ "$result" == *"{$token}"* ]] && [[ -n "$value" ]]; then
-      result="${result//\{$token\}/$value}"
-    elif [[ "$result" == *"{$token}"* ]]; then
-      result="${result//\{$token\}/}"
-    fi
-  done
-  
-  # Clean up spaces and convert to dots for filename compatibility
+  # Clean up multiple spaces and trim
   result=$(echo "$result" | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')
-  # Convert spaces to dots for proper filename format
+  
+  log_debug "🔧 After space cleanup: '$result'"
+  
+  # Convert spaces to dots for filename compatibility  
   result=$(echo "$result" | sed 's/ /./g')
+  
+  log_debug "🔧 Final result: '$result'"
+  
+  # Validate result
+  if [[ -z "$result" ]]; then
+    log "❌ Result is empty after token processing"
+    return 1
+  fi
+  
   echo "$result"
 }
 
 # Process the naming pattern with error handling
-log "🔧 Input naming pattern: $NAMING_PATTERN"
+log_detailed "🔧 Input naming pattern: $NAMING_PATTERN"
 
-# SPECIAL DEBUG: Test the problematic tokens first
-log "🧪 PRE-PROCESSING TOKEN TEST:"
-test_mediainfo_pattern="{.MediaInfo Full:ES}"
-test_mediainfo_result=$(process_filename_tokens "$test_mediainfo_pattern")
-log "   MediaInfo pattern '$test_mediainfo_pattern' → '$test_mediainfo_result'"
+# Add comprehensive error handling for token replacement
+log_detailed "🔧 Starting token processing..."
+log_debug "   Input pattern: $NAMING_PATTERN"
+log_debug "   Input pattern length: ${#NAMING_PATTERN}"
 
-# Add error handling for token replacement
-if ! NEW_FILENAME=$(process_filename_tokens "$NAMING_PATTERN"); then
-  log "❌ Failed to process naming pattern"
+# SAFETY: Trap any errors during token processing
+set +e  # Temporarily disable exit on error
+
+# Add detailed debugging before processing
+log_debug "🐛 DEBUG: Pre-processing state check..."
+log_debug "   MediaInfo.Full value: '${TOKEN_VALUES["MediaInfo.Full"]:-EMPTY}'"
+log_debug "   MediaInfo.Full length: ${#TOKEN_VALUES["MediaInfo.Full"]}"
+log_debug "   Pattern to process: '$NAMING_PATTERN'"
+
+# Create a simple test first
+log_debug "🧪 SIMPLE TOKEN TEST:"
+simple_test="{Movie.CleanTitle}"
+simple_result=$(process_filename_tokens "$simple_test" 2>&1)
+simple_exit_code=$?
+log_debug "   Simple test '$simple_test' → exit:$simple_exit_code → '$simple_result'"
+
+log_debug "🧪 MEDIAINFO TOKEN TEST:"
+mediainfo_test="{.MediaInfo Full:ES}"
+mediainfo_result=$(process_filename_tokens "$mediainfo_test" 2>&1)
+mediainfo_exit_code=$?
+log_debug "   MediaInfo test '$mediainfo_test' → exit:$mediainfo_exit_code → '$mediainfo_result'"
+
+# Now try the full pattern
+log_info "🔧 Processing full pattern..."
+NEW_FILENAME=$(process_filename_tokens "$NAMING_PATTERN")
+PROCESS_EXIT_CODE=$?
+set -e  # Re-enable exit on error
+
+log_debug "🐛 DEBUG: Post-processing results..."
+log_debug "   Exit code: $PROCESS_EXIT_CODE"
+log_debug "   Raw output: '$NEW_FILENAME'"
+log_debug "   Output length: ${#NEW_FILENAME}"
+
+if [[ $PROCESS_EXIT_CODE -ne 0 ]]; then
+  log "❌ Token processing failed with exit code: $PROCESS_EXIT_CODE"
   log "   Pattern: $NAMING_PATTERN"
+  log "   Available tokens: ${!TOKEN_VALUES[@]}"
+  log "   Full output/error: $NEW_FILENAME"
   exit 1
 fi
+
+# Check if output contains error messages (in case function printed error but returned 0)
+if [[ "$NEW_FILENAME" == *"❌"* ]]; then
+  log "❌ Token processing returned error messages"
+  log "   Error output: $NEW_FILENAME"
+  exit 1
+fi
+
+log_info "✅ Token processing completed successfully"
 
 # Validate the result is not empty
 if [[ -z "$NEW_FILENAME" ]]; then
@@ -605,26 +787,26 @@ if [[ -z "$NEW_FILENAME" ]]; then
   exit 1
 fi
 
-# CRITICAL DEBUG: Show filename BEFORE sanitization
-log "🔍 FILENAME BEFORE SANITIZATION: '$NEW_FILENAME'"
-log "   Length before: ${#NEW_FILENAME}"
-log "   Contains MediaInfo: $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
+# Show filename before sanitization (debug level)
+log_debug "🔍 FILENAME BEFORE SANITIZATION: '$NEW_FILENAME'"
+log_debug "   Length before: ${#NEW_FILENAME}"
+log_debug "   Contains MediaInfo: $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
 
 # Sanitize filename for filesystem
 NEW_FILENAME=$(echo "$NEW_FILENAME" | sed 's/[<>:"/\\|?*]//g' | sed 's/[[:space:]]*$//g')
 
-# CRITICAL DEBUG: Show filename AFTER sanitization
-log "🔍 FILENAME AFTER SANITIZATION: '$NEW_FILENAME'"
-log "   Length after: ${#NEW_FILENAME}"
-log "   Contains MediaInfo: $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
+# Show filename after sanitization (debug level)
+log_debug "🔍 FILENAME AFTER SANITIZATION: '$NEW_FILENAME'"
+log_debug "   Length after: ${#NEW_FILENAME}"
+log_debug "   Contains MediaInfo: $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
 
-log "🎯 Generated filename (without extension): $NEW_FILENAME"
+log_info "🎯 Generated filename (without extension): $NEW_FILENAME"
 
-# Debug: Show key tokens that should be in the result
-log "🔍 Debug - Key tokens:"
-log "   Movie.CleanTitle: '${TOKEN_VALUES["Movie.CleanTitle"]}'"
-log "   Release.Year: '${TOKEN_VALUES["Release.Year"]}'"
-log "   Quality.Full: '${TOKEN_VALUES["Quality.Full"]}'"
+# Show key tokens in detailed level
+log_detailed "🔍 Debug - Key tokens:"
+log_detailed "   Movie.CleanTitle: '${TOKEN_VALUES["Movie.CleanTitle"]}'"
+log_detailed "   Release.Year: '${TOKEN_VALUES["Release.Year"]}'"
+log_detailed "   Quality.Full: '${TOKEN_VALUES["Quality.Full"]}'"
 
 # Validate tokens were actually replaced
 if [[ "$NEW_FILENAME" == *"{"* ]]; then
@@ -648,10 +830,10 @@ if [[ "$NEW_FILENAME" == *"{"* ]]; then
     log "   💡 Release.Group value: '${TOKEN_VALUES["Release.Group"]:-EMPTY}'"
   fi
 else
-  log "✅ All tokens were successfully replaced"
+  log_info "✅ All tokens were successfully replaced"
   
-  # Check if user's specific tokens were included in final result
-  log "🔍 User's specific tokens in final result:"
+  # Check if user's specific tokens were included in final result (detailed level)
+  log_detailed "🔍 User's specific tokens in final result:"
   
   # Check if MediaInfo was included
   mediainfo_in_result=""
@@ -662,7 +844,7 @@ else
   else
     mediainfo_in_result="⚠️  MediaInfo may be included but not clearly identifiable"
   fi
-  log "   $mediainfo_in_result"
+  log_detailed "   $mediainfo_in_result"
   
   # Check if Custom Formats were included
   custom_in_result=""
@@ -673,7 +855,7 @@ elif [[ -z "${TOKEN_VALUES["Custom.Formats"]}" ]]; then
 else
   custom_in_result="⚠️  Custom Formats may be included but not clearly identifiable"
 fi
-  log "   $custom_in_result"
+  log_detailed "   $custom_in_result"
   
   # Check if Release Group was included
   release_in_result=""
@@ -685,11 +867,11 @@ fi
   else
     release_in_result="⚠️  Release Group may be included but not clearly identifiable"
   fi
-  log "   $release_in_result"
+  log_detailed "   $release_in_result"
 fi
 
 # ───────────── 7. Find and Rename All Files ──────────────────────────────────
-log "🔍 Finding all files in directory..."
+log_info "🔍 Finding all files in directory..."
 
 # Function to find video files
 find_video_files() {
@@ -711,7 +893,7 @@ if [[ ${#VIDEO_FILES[@]} -eq 0 ]]; then
   exit 1
 fi
 
-log "📹 Found ${#VIDEO_FILES[@]} video file(s)"
+log_info "📹 Found ${#VIDEO_FILES[@]} video file(s)"
 
 # Initialize rename counter
 renamed_count=0
@@ -728,21 +910,21 @@ for video_file in "${VIDEO_FILES[@]}"; do
   new_filename_with_ext="$NEW_FILENAME.$file_extension"
   new_file_path="$MOVIE_DIR/$new_filename_with_ext"
   
-  log "🎥 Processing: $old_filename"
-  log "🎯 Target: $new_filename_with_ext"
+  log_info "🎥 Processing: $old_filename"
+  log_info "🎯 Target: $new_filename_with_ext"
   
-  # CRITICAL DEBUG: Detailed filename comparison
-  log "🔍 DETAILED RENAME ANALYSIS:"
-  log "   Original filename: '$old_filename'"
-  log "   Generated NEW_FILENAME: '$NEW_FILENAME'"
-  log "   Target with extension: '$new_filename_with_ext'"
-  log "   Original == Target? $(if [[ "$old_filename" == "$new_filename_with_ext" ]]; then echo "YES (NO RENAME NEEDED)"; else echo "NO (RENAME REQUIRED)"; fi)"
-  log "   NEW_FILENAME contains MediaInfo? $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
+  # Detailed filename comparison (debug level)
+  log_debug "🔍 DETAILED RENAME ANALYSIS:"
+  log_debug "   Original filename: '$old_filename'"
+  log_debug "   Generated NEW_FILENAME: '$NEW_FILENAME'"
+  log_debug "   Target with extension: '$new_filename_with_ext'"
+  log_debug "   Original == Target? $(if [[ "$old_filename" == "$new_filename_with_ext" ]]; then echo "YES (NO RENAME NEEDED)"; else echo "NO (RENAME REQUIRED)"; fi)"
+  log_debug "   NEW_FILENAME contains MediaInfo? $(if [[ "$NEW_FILENAME" == *"${TOKEN_VALUES["MediaInfo.Full"]}"* ]]; then echo "YES"; else echo "NO"; fi)"
   
   # Check if rename is needed
   if [[ "$old_filename" == "$new_filename_with_ext" ]]; then
-    log "✅ File already has correct name: $old_filename"
-    log "🚨 THIS IS WHY THE FILE IS NOT BEING RENAMED!"
+    log_info "✅ File already has correct name: $old_filename"
+    log_detailed "🚨 THIS IS WHY THE FILE IS NOT BEING RENAMED!"
     continue
   fi
   
@@ -762,7 +944,7 @@ for video_file in "${VIDEO_FILES[@]}"; do
     new_base_name="$NEW_FILENAME"
     
     # Find ALL files in the directory (not just ones that start with the base name)
-    log "🔄 Renaming ALL files in directory to match new naming convention..."
+    log_detailed "🔄 Renaming ALL files in directory to match new naming convention..."
     IFS=$'\n' ALL_FILES=($(find "$MOVIE_DIR" -maxdepth 1 -type f 2>/dev/null))
     IFS=$' \t\n'
     
@@ -776,7 +958,7 @@ for video_file in "${VIDEO_FILES[@]}"; do
         
         # Skip if this file doesn't need renaming (already has proper name)
         if [[ "$file_basename" =~ ^${NEW_FILENAME}\. ]]; then
-          log "✅ File already has correct naming: $file_basename"
+          log_detailed "✅ File already has correct naming: $file_basename"
           continue
         fi
         
@@ -831,52 +1013,52 @@ for video_file in "${VIDEO_FILES[@]}"; do
   fi
 done
 
-log "🎊 Hybrid file renaming completed successfully!"
-log "✨ Used Radarr API data with manual token processing - no conflicts!"
+log_info "🎊 Hybrid file renaming completed successfully!"
+log_detailed "✨ Used Radarr API data with manual token processing - no conflicts!"
 
-# FINAL TEST: Verify specific tokens mentioned by user
-log ""
-log "🧪 FINAL TOKEN TEST for user's specific pattern:"
-log "   Pattern: {.MediaInfo Full:ES}{.Custom.Formats}{-Release Group}"
+# FINAL TEST: Verify specific tokens mentioned by user (debug level)
+log_debug ""
+log_debug "🧪 FINAL TOKEN TEST for user's specific pattern:"
+log_debug "   Pattern: {.MediaInfo Full:ES}{.Custom.Formats}{-Release Group}"
 
 test_pattern="{.MediaInfo Full:ES}{.Custom.Formats}{-Release Group}"
 test_result=$(process_filename_tokens "$test_pattern")
 
-log "   Input pattern:  '$test_pattern'"
-log "   Result pattern: '$test_result'"
+log_debug "   Input pattern:  '$test_pattern'"
+log_debug "   Result pattern: '$test_result'"
 
 if [[ "$test_result" == "$test_pattern" ]]; then
-  log "   🚨 NO TOKENS WERE REPLACED - All stayed as literal text"
+  log_debug "   🚨 NO TOKENS WERE REPLACED - All stayed as literal text"
 else
-  log "   ✅ Some tokens were processed"
+  log_debug "   ✅ Some tokens were processed"
   
   # Check each specific token
   if [[ "$test_result" == *"{.MediaInfo Full:ES}"* ]]; then
-    log "   ❌ MediaInfo Full:ES was NOT replaced"
+    log_debug "   ❌ MediaInfo Full:ES was NOT replaced"
   else
-    log "   ✅ MediaInfo Full:ES was replaced"
+    log_debug "   ✅ MediaInfo Full:ES was replaced"
   fi
   
   if [[ "$test_result" == *"{.Custom.Formats}"* ]]; then
-    log "   ❌ Custom.Formats was NOT replaced"
+    log_debug "   ❌ Custom.Formats was NOT replaced"
   else
-    log "   ✅ Custom.Formats was replaced"
+    log_debug "   ✅ Custom.Formats was replaced"
   fi
   
   if [[ "$test_result" == *"{-Release Group}"* ]]; then
-    log "   ❌ Release Group was NOT replaced"
+    log_debug "   ❌ Release Group was NOT replaced"
   else
-    log "   ✅ Release Group was replaced"
+    log_debug "   ✅ Release Group was replaced"
   fi
 fi
 
 # ───────────── FINAL SUMMARY ──────────────────────────────────────────────────
-log ""
-log "📊 FINAL PROCESSING SUMMARY:"
-log "   📁 Directory processed: $MOVIE_DIR"
-log "   🎬 Movie: $MOVIE_TITLE_RAW (${TOKEN_VALUES["Release.Year"]:-"Unknown Year"})"
-log "   📝 Naming pattern: $NAMING_PATTERN"
-log "   🎯 Generated filename: $NEW_FILENAME"
-log "   📹 Total video files found: ${#VIDEO_FILES[@]}"
-log "   ✅ Video files renamed: $renamed_count"
-log "   ⚠️  Video files skipped: $((${#VIDEO_FILES[@]} - renamed_count))" 
+log_info ""
+log_info "📊 FINAL PROCESSING SUMMARY:"
+log_info "   📁 Directory processed: $MOVIE_DIR"
+log_info "   🎬 Movie: $MOVIE_TITLE_RAW (${TOKEN_VALUES["Release.Year"]:-"Unknown Year"})"
+log_detailed "   📝 Naming pattern: $NAMING_PATTERN"
+log_info "   🎯 Generated filename: $NEW_FILENAME"
+log_info "   📹 Total video files found: ${#VIDEO_FILES[@]}"
+log_info "   ✅ Video files renamed: $renamed_count"
+log_info "   ⚠️  Video files skipped: $((${#VIDEO_FILES[@]} - renamed_count))" 

@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 [ -z "$BASH_VERSION" ] && exec /usr/bin/env bash "$0" "$@"
-set -euo pipefail
+
+# Configure UTF-8 encoding for Windows compatibility
+export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
+
+# Detect if running in PowerShell and improve output
+if [[ "${TERM_PROGRAM:-}" == "vscode" ]] || [[ -n "${PSModulePath:-}" ]]; then
+  # Running in PowerShell or VS Code - UTF-8 should work better
+  export PYTHONIOENCODING=utf-8
+fi
+
+set -euo pipefail
 
 # ───────────── 1. Test Event ─────────────────────────────────────────
 if [[ "${radarr_eventtype:-}" == "Test" ]]; then
@@ -74,10 +84,59 @@ RSYNC_OPTIONS="${RSYNC_OPTIONS:--a --ignore-existing}"
 USE_COLLECTIONS="${USE_COLLECTIONS:-true}"
 INCLUDE_QUALITY_TAG="${INCLUDE_QUALITY_TAG:-true}"
 
-# Enhanced logging functions with level control
+# Enhanced logging functions with level control and Windows emoji compatibility
 log() { 
+  local message="$*"
+  
+  # Replace problematic emojis with Windows-compatible versions
+  message="${message//🎬/[MOVIE]}"
+  message="${message//📁/[FOLDER]}"
+  message="${message//🔧/[CONFIG]}"
+  message="${message//✅/[OK]}"
+  message="${message//❌/[ERROR]}"
+  message="${message//⚠️/[WARN]}"
+  message="${message//🔍/[DEBUG]}"
+  message="${message//🐛/[DEBUG]}"
+  message="${message//🔄/[CONVERT]}"
+  message="${message//📋/[INFO]}"
+  message="${message//🌍/[WEB]}"
+  message="${message//🎭/[TITLE]}"
+  message="${message//📄/[FILE]}"
+  message="${message//🔥/[API]}"
+  message="${message//ℹ️/[INFO]}"
+  message="${message//📊/[SUMMARY]}"
+  message="${message//🎯/[TARGET]}"
+  message="${message//🔬/[ANALYSIS]}"
+  message="${message//🚀/[START]}"
+  message="${message//🧪/[TEST]}"
+  message="${message//📹/[VIDEO]}"
+  message="${message//🎊/[SUCCESS]}"
+  message="${message//✨/[COMPLETE]}"
+  message="${message//🚨/[ALERT]}"
+  message="${message//💡/[TIP]}"
+  message="${message//🗂️/[FOLDER]}"
+  message="${message//📤/[UPLOAD]}"
+  message="${message//🔤/[LANG]}"
+  message="${message//🌐/[WEB]}"
+  message="${message//🏷️/[TAG]}"
+  message="${message//📂/[DIR]}"
+  message="${message//💚/[SUCCESS]}"
+  message="${message//🔗/[LINK]}"
+  message="${message//⏰/[TIME]}"
+  message="${message//🔀/[SHUFFLE]}"
+  message="${message//🎪/[EVENT]}"
+  message="${message//✔️/[CHECK]}"
+  message="${message//🏗️/[BUILD]}"
+  message="${message//⚙️/[SETTINGS]}"
+  message="${message//📥/[DOWNLOAD]}"
+  message="${message//🎉/[PARTY]}"
+  message="${message//📝/[MEMO]}"
+  message="${message//🔄/[REFRESH]}"
+  message="${message//📡/[SIGNAL]}"
+  message="${message//🌐/[GLOBAL]}"
+  
   # Always log errors, warnings, and important messages (MINIMAL level and above)
-  printf '[%s] %s\n' "$(date +'%F %T')" "$*" >&2; 
+  printf '[%s] %s\n' "$(date +'%F %T')" "$message" >&2; 
 }
 
 log_info() {
@@ -551,9 +610,9 @@ copy_tree(){
     # Count total files
     total_file_count=$(find "$src_dir" -maxdepth $FIND_MAXDEPTH -type f | wc -l)
     
-    log "🔍 Safety Check - Source Directory Analysis:"
-    log "   Video files found: $video_file_count"
-    log "   Total files found: $total_file_count"
+    log_debug "🔍 Safety Check - Source Directory Analysis:"
+    log_debug "   Video files found: $video_file_count"
+    log_debug "   Total files found: $total_file_count"
     
     # If more than 100 files and less than 10% are video files, something is wrong
     if [[ $total_file_count -gt 100 && $video_file_count -eq 0 ]]; then
@@ -642,6 +701,10 @@ for a in "$@"; do
       radarr_moviefile_quality=${a#*=} 
       log "📋 Parsed movie quality: $radarr_moviefile_quality"
       ;;
+    radarr_movie_path=*)
+      radarr_movie_path=${a#*=}
+      log "📋 Parsed movie path: $radarr_movie_path"
+      ;;
     *)
       log "⚠️  Unknown argument: $a"
       ;;
@@ -705,9 +768,9 @@ get_preferred_title() {
     *)                       orig_lang="${orig_lang_name,,}" ;;  # Use as-is if already a code
   esac
   
-  log "🔤 Language preference: ${native_lang:-'(none)'} → ${fallback_lang}"
-  log "🌍 Movie original language: '${orig_lang_name}' → '${orig_lang}'"
-  log "🔍 Language comparison: native='${native_lang}' vs original='${orig_lang}'"
+  log_language "🔤 Language preference: ${native_lang:-'(none)'} → ${fallback_lang}"
+  log_language "🌍 Movie original language: '${orig_lang_name}' → '${orig_lang}'"
+  log_debug "🔍 Language comparison: native='${native_lang}' vs original='${orig_lang}'"
   
   # TMDB Integration: ONLY for movies where original language matches native language
   if [[ -n $native_lang && $orig_lang == "$native_lang" ]]; then
@@ -841,17 +904,17 @@ else
   SIMPLE=$(quality_tag "$RESOLUTION" "$QUALITY_NAME" "$FILE_PATH")
 fi
 
-# Debug quality processing
-log "🔍 Quality Debug:"
-log "   FILE_PATH: ${FILE_PATH:-'(empty)'}"
-log "   QUALITY_NAME: ${QUALITY_NAME:-'(empty)'}"
-log "   RESOLUTION: ${RESOLUTION:-'(empty)'}"
+# Debug quality processing (debug level)
+log_debug "🔍 Quality Debug:"
+log_debug "   FILE_PATH: ${FILE_PATH:-'(empty)'}"
+log_debug "   QUALITY_NAME: ${QUALITY_NAME:-'(empty)'}"
+log_debug "   RESOLUTION: ${RESOLUTION:-'(empty)'}"
 if [[ "$FILE_PATH" =~ \.m2ts$ ]]; then
-  log "   WIDTH: ${WIDTH:-'(empty)'}"
-  log "   HEIGHT: ${HEIGHT:-'(empty)'}"
-  log "   SOURCE: ${SOURCE:-'(empty)'}"
+  log_debug "   WIDTH: ${WIDTH:-'(empty)'}"
+  log_debug "   HEIGHT: ${HEIGHT:-'(empty)'}"
+  log_debug "   SOURCE: ${SOURCE:-'(empty)'}"
 fi
-log "   SIMPLE (quality detection result): ${SIMPLE:-'(empty)'}"
+log_debug "   SIMPLE (quality detection result): ${SIMPLE:-'(empty)'}"
 
 ROOT=$(jq -r '.rootFolderPath' <<<"$MOVIE_JSON"); [[ $ROOT != *[\\/] ]] && ROOT+="\\"
 
@@ -889,12 +952,12 @@ NEW_FOLDER=$(build_folder_name "$TITLE" "$radarr_movie_year" "$SIMPLE" "$COLL")
 NEW_FOLDER=$(sanitize "$NEW_FOLDER")
 DEST="${ROOT}${NEW_FOLDER}"
 
-log "🔍 Final Results:"
-log "   TITLE_RAW: $TITLE_RAW"
-log "   TITLE: $TITLE"
-log "   SIMPLE: $SIMPLE"
-log "   NEW_FOLDER: $NEW_FOLDER"
-log "   DEST: $DEST"
+log_detailed "🔍 Final Results:"
+log_detailed "   TITLE_RAW: $TITLE_RAW"
+log_detailed "   TITLE: $TITLE"
+log_detailed "   SIMPLE: $SIMPLE"
+log_detailed "   NEW_FOLDER: $NEW_FOLDER"
+log_detailed "   DEST: $DEST"
 
 # ───────────── 6. Current paths & possible renaming ─────────────────
 OLD=$(jq -r '.movieFile.path // empty' <<<"$MOVIE_JSON")
@@ -912,8 +975,8 @@ if [[ ! -d "$ORIG_DIR" ]]; then
   exit 96
 fi
 
-# CRITICAL SAFETY CHECK: Prevent processing system/application directories
-log "🔍 Performing critical safety checks on source directory..."
+# CRITICAL SAFETY CHECK: Prevent processing system/application directories  
+log_detailed "🔍 Performing critical safety checks on source directory..."
 
 # Check for Radarr installation indicators
 radarr_indicators=("Radarr.exe" "radarr.exe" "NzbDrone.exe" "bin" "logs" "config.xml" "Database" "Backup")
@@ -942,8 +1005,8 @@ if [[ $executable_count -gt 10 ]]; then
   exit 103
 fi
 
-log "✅ Safety checks passed for source directory"
-log "📂 Source directory: $ORIG_DIR"
+log_detailed "✅ Safety checks passed for source directory"
+log_info "📂 Source directory: $ORIG_DIR"
 
 # Already in destination
 if [[ "$(norm "$ORIG_DIR")" == "$(norm "$DEST")" ]]; then
@@ -961,7 +1024,8 @@ if [[ "$(norm "$ORIG_DIR")" == "$(norm "$DEST")" ]]; then
       log "🔧 Pattern: ${FILE_NAMING_PATTERN:-'Using Radarr default pattern'}"
       
       # Call the native Radarr file renaming script with movie ID and destination directory
-      if bash "$FILE_RENAME_SCRIPT" "$ID" "$DEST" 2>&1 | while read line; do log "   $line"; done; then
+      # FIXED: Use single quotes around DEST to prevent bash from interpreting backslashes
+      if bash "$FILE_RENAME_SCRIPT" "$ID" "'$DEST'" 2>&1 | while read line; do log "   $line"; done; then
         log "✅ Native Radarr file renaming completed successfully"
         log "🎯 All files renamed using Radarr's native token system"
       else
@@ -980,14 +1044,14 @@ if [[ "$(norm "$ORIG_DIR")" == "$(norm "$DEST")" ]]; then
   
   # Refresh Radarr after file renaming (if it was executed)
   if [[ "${ENABLE_FILE_RENAMING:-false}" == "true" ]]; then
-    log "🔍 Refreshing Radarr after file renaming..."
+    log_detailed "🔍 Refreshing Radarr after file renaming..."
     for cmd in RefreshMovie RescanMovie; do
       curl -sf --max-time 15 --retry 1 \
            -X POST -H "X-Api-Key:$RADARR_API_KEY" -H "Content-Type:application/json" \
            -d "{\"name\":\"$cmd\",\"movieIds\":[$ID]}" \
            "$RADARR_URL/api/v3/command" >/dev/null
     done
-    log "✅ Radarr refresh completed"
+    log_detailed "✅ Radarr refresh completed"
   fi
   
   exit 0
@@ -1089,24 +1153,24 @@ perform_radarr_put() {
   TEMP_JSON_FILE="${SCRIPTS_DIR}/logs/radarr_put_debug_attempt$attempt_num.json"
   mkdir -p "${SCRIPTS_DIR}/logs" 2>/dev/null || true
   echo "$UPD" > "$TEMP_JSON_FILE"
-  log "🔍 JSON being sent to Radarr (first 1000 chars):"
-  log "$(echo "$UPD" | head -c 1000)..."
-  log "🔍 Full JSON saved to: $TEMP_JSON_FILE"
+  log_debug "🔍 JSON being sent to Radarr (first 1000 chars):"
+  log_debug "$(echo "$UPD" | head -c 1000)..."
+  log_debug "🔍 Full JSON saved to: $TEMP_JSON_FILE"
 
   # Validate JSON structure
   if ! echo "$UPD" | jq empty 2>/dev/null; then
     log "❌ Invalid JSON structure detected!"
-    log "🔍 JSON validation error:"
+    log_debug "🔍 JSON validation error:"
     echo "$UPD" | jq empty 2>&1 | head -5 | while read line; do log "   $line"; done
     return 1
   fi
 
   # Debug curl command
-  log "🔍 Curl command being executed:"
-  log "curl -X PUT -H 'X-Api-Key:$RADARR_API_KEY' -H 'Content-Type:application/json' -d '<JSON>' '$RADARR_URL/api/v3/movie/$ID'"
+  log_debug "🔍 Curl command being executed:"
+  log_debug "curl -X PUT -H 'X-Api-Key:$RADARR_API_KEY' -H 'Content-Type:application/json' -d '<JSON>' '$RADARR_URL/api/v3/movie/$ID'"
 
   # Try multiple curl approaches for UTF-8 support
-  log "🔍 Attempting curl with UTF-8 encoding..."
+  log_debug "🔍 Attempting curl with UTF-8 encoding..."
 
   # Method 1: Save JSON to temp file and use --data-binary with file
   TEMP_JSON_REQUEST="${SCRIPTS_DIR}/logs/radarr_request_${ID}_attempt$attempt_num.json"
@@ -1206,13 +1270,13 @@ refresh_and_get_movie() {
       current_source=$(echo "$UPDATED_MOVIE_JSON" | jq -r '.movieFile.quality.quality.source // empty')
     fi
     
-    log "🔍 Quality check (attempt $attempt):"
-    log "   Quality Name: ${current_quality:-'(empty)'}"
-    log "   Resolution: ${current_resolution:-'(empty)'}"
+    log_debug "🔍 Quality check (attempt $attempt):"
+    log_debug "   Quality Name: ${current_quality:-'(empty)'}"
+    log_debug "   Resolution: ${current_resolution:-'(empty)'}"
     if [[ "$is_m2ts" == "true" ]]; then
-      log "   Width: ${current_width:-'(empty)'}"
-      log "   Height: ${current_height:-'(empty)'}"
-      log "   Source: ${current_source:-'(empty)'}"
+      log_debug "   Width: ${current_width:-'(empty)'}"
+      log_debug "   Height: ${current_height:-'(empty)'}"
+      log_debug "   Source: ${current_source:-'(empty)'}"
     fi
     
     # If we got quality info, we're done
@@ -1316,17 +1380,17 @@ else
   UPDATED_SIMPLE=$(quality_tag "$UPDATED_RESOLUTION" "$UPDATED_QUALITY_NAME" "$UPDATED_FILE_PATH")
 fi
 
-# Debug updated quality processing
-log "🔍 Updated Quality Debug:"
-log "   UPDATED_FILE_PATH: ${UPDATED_FILE_PATH:-'(empty)'}"
-log "   UPDATED_QUALITY_NAME: ${UPDATED_QUALITY_NAME:-'(empty)'}"
-log "   UPDATED_RESOLUTION: ${UPDATED_RESOLUTION:-'(empty)'}"
+# Debug updated quality processing (debug level)
+log_debug "🔍 Updated Quality Debug:"
+log_debug "   UPDATED_FILE_PATH: ${UPDATED_FILE_PATH:-'(empty)'}"
+log_debug "   UPDATED_QUALITY_NAME: ${UPDATED_QUALITY_NAME:-'(empty)'}"
+log_debug "   UPDATED_RESOLUTION: ${UPDATED_RESOLUTION:-'(empty)'}"
 if [[ "$UPDATED_FILE_PATH" =~ \.m2ts$ ]]; then
-  log "   UPDATED_WIDTH: ${UPDATED_WIDTH:-'(empty)'}"
-  log "   UPDATED_HEIGHT: ${UPDATED_HEIGHT:-'(empty)'}"
-  log "   UPDATED_SOURCE: ${UPDATED_SOURCE:-'(empty)'}"
+  log_debug "   UPDATED_WIDTH: ${UPDATED_WIDTH:-'(empty)'}"
+  log_debug "   UPDATED_HEIGHT: ${UPDATED_HEIGHT:-'(empty)'}"
+  log_debug "   UPDATED_SOURCE: ${UPDATED_SOURCE:-'(empty)'}"
 fi
-log "   UPDATED_SIMPLE (updated quality detection result): ${UPDATED_SIMPLE:-'(empty)'}"
+log_debug "   UPDATED_SIMPLE (updated quality detection result): ${UPDATED_SIMPLE:-'(empty)'}"
 
 # Check if we can escape from fallback LowQuality to real quality
 # We only rename if:
@@ -1341,10 +1405,10 @@ if [[ "$SIMPLE" == "LowQuality" && "$UPDATED_SIMPLE" != "LowQuality" ]]; then
   UPDATED_NEW_FOLDER=$(sanitize "$UPDATED_NEW_FOLDER")
   UPDATED_DEST="${ROOT}${UPDATED_NEW_FOLDER}"
   
-  log "🔍 Updated Final Results:"
-  log "   UPDATED_SIMPLE: $UPDATED_SIMPLE"
-  log "   UPDATED_NEW_FOLDER: $UPDATED_NEW_FOLDER"
-  log "   UPDATED_DEST: $UPDATED_DEST"
+  log_detailed "🔍 Updated Final Results:"
+  log_detailed "   UPDATED_SIMPLE: $UPDATED_SIMPLE"
+  log_detailed "   UPDATED_NEW_FOLDER: $UPDATED_NEW_FOLDER"
+  log_detailed "   UPDATED_DEST: $UPDATED_DEST"
   
   # Only rename if the destination is actually different
   if [[ "$DEST" != "$UPDATED_DEST" ]]; then
@@ -1404,6 +1468,7 @@ if [[ "${ENABLE_FILE_RENAMING:-false}" == "true" ]]; then
     log "🔧 Pattern: ${FILE_NAMING_PATTERN:-'Using Radarr default pattern'}"
     
     # Call the native Radarr file renaming script with movie ID and destination directory
+    # FIXED: Properly escape the destination path to preserve Windows backslashes
     if bash "$FILE_RENAME_SCRIPT" "$ID" "$DEST" 2>&1 | while read line; do log "   $line"; done; then
       log "✅ Native Radarr file renaming completed successfully"
       log "🎯 All files renamed using Radarr's native token system"
@@ -1435,11 +1500,11 @@ elif [[ "$UPDATE_FOLDER_TIMESTAMP" == "true" && "$FOLDER_WAS_RENAMED" == "false"
 fi
 
 # ───────────── 9.2. Final Refresh + Rescan ────────────────────────────────────
-log "🔍 Refreshing Radarr after all operations..."
+log_detailed "🔍 Refreshing Radarr after all operations..."
 for cmd in RefreshMovie RescanMovie; do
   curl -sf --max-time 15 --retry 1 \
        -X POST -H "X-Api-Key:$RADARR_API_KEY" -H "Content-Type:application/json" \
        -d "{\"name\":\"$cmd\",\"movieIds\":[$ID]}" \
        "$RADARR_URL/api/v3/command" >/dev/null
 done
-log "✅ Radarr refresh completed"
+log_detailed "✅ Radarr refresh completed"
