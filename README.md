@@ -1,4 +1,4 @@
-# Radarr Movie Renamer v2.1
+# Radarr Movie Renamer v2.2
 
 Complete Radarr library organization solution that renames both folders AND files with intelligent quality detection, smart logging, and robust error handling.
 
